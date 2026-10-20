@@ -71,6 +71,21 @@ export class PatientsService {
     });
   }
 
+  // ── Clinic-wide counts ────────────────────────────────────────────────────
+
+  /** Counts for the patients page. totalOutstanding is money: the controller drops it without billing:read. */
+  async getStats(clinicId: string, now = new Date()) {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const activeSince = new Date(now.getTime() - 30 * 86_400_000);
+    const [total, newThisMonth, active, outstanding] = await Promise.all([
+      this.prisma.patient.count({ where: { clinicId } }),
+      this.prisma.patient.count({ where: { clinicId, createdAt: { gte: monthStart } } }),
+      this.prisma.patient.count({ where: { clinicId, lastVisitDate: { gte: activeSince } } }),
+      this.prisma.patient.aggregate({ where: { clinicId }, _sum: { outstandingBalance: true } }),
+    ]);
+    return { total, newThisMonth, active, totalOutstanding: Number(outstanding._sum.outstandingBalance ?? 0) };
+  }
+
   // ── List / search ─────────────────────────────────────────────────────────
 
   async findAll(clinicId: string, dto: SearchPatientsDto) {
@@ -154,11 +169,14 @@ export class PatientsService {
     const patient = await this.prisma.patient.findFirst({ where: { id, clinicId } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    const { bloodGroup, allergies, medicalHistory, dateOfBirth, gender, emergencyContact: _unsupported, ...rest } = dto;
+    const { bloodGroup, allergies, medicalHistory, dateOfBirth, gender, fullName, email, address, city, waOptIn } = dto;
+    // Explicit field list (no spread of the request body): only profile fields can ever be written, never
+    // clinicId, outstandingBalance, patientCode, totalVisits, isActive, etc., whatever reaches this method.
     return this.prisma.patient.update({
       where: { id },
       data:  {
-        ...rest,
+        // only keys that were actually sent: an omitted waOptIn must stay untouched (consent is never rewritten implicitly)
+        ...Object.fromEntries(Object.entries({ fullName, email, address, city, waOptIn }).filter(([, v]) => v !== undefined)),
         dateOfBirth:       dateOfBirth ? new Date(dateOfBirth) : undefined,
         gender:            gender as any,
         bloodGroup:        toBloodGroup(bloodGroup),

@@ -43,3 +43,13 @@ export function redactPatientTimeline<T extends { appointments?: Record<string, 
     [FINANCIALS_RESTRICTED]: true as const,
   };
 }
+
+/** A single patient row returned by create/update — drops outstandingBalance. */
+export function redactPatientRecord<T extends Record<string, any>>(patient: T) {
+  return { ...withoutKeys(patient, ['outstandingBalance']), [FINANCIALS_RESTRICTED]: true as const };
+}
+
+/** patients/stats — drops the clinic-wide outstanding total. */
+export function redactPatientStats<T extends Record<string, any>>(stats: T) {
+  return { ...withoutKeys(stats, ['totalOutstanding']), [FINANCIALS_RESTRICTED]: true as const };
+}

@@ -282,7 +282,7 @@ export default function PatientsPage() {
             { label: 'Total Patients', value: (stats?.total ?? 0).toLocaleString('en-IN'), icon: Users, color: 'text-blue-600 bg-blue-50' },
             { label: 'New This Month', value: stats?.newThisMonth ?? 0, icon: Plus, color: 'text-emerald-600 bg-emerald-50' },
             { label: 'Active (30d)', value: stats?.active ?? 0, icon: Activity, color: 'text-purple-600 bg-purple-50' },
-            { label: 'Outstanding', value: formatCurrency(stats?.totalOutstanding ?? 0), icon: FileText, color: 'text-orange-600 bg-orange-50' },
+            { label: 'Outstanding', value: stats?.financialsRestricted ? '—' : formatCurrency(stats?.totalOutstanding ?? 0), icon: FileText, color: 'text-orange-600 bg-orange-50' },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className="p-4 flex items-center gap-3">

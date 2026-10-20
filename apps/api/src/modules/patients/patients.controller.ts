@@ -10,7 +10,9 @@ import {
 import { ClinicId } from '../../common/decorators/current-user.decorator';
 import { AppRequest } from '../../common/types/request.types';
 import { roleHasPermission } from '../../common/guards/permissions.guard';
-import { redactPatientDetail, redactPatientList, redactPatientTimeline } from './patient-financials';
+import {
+  redactPatientDetail, redactPatientList, redactPatientTimeline, redactPatientRecord, redactPatientStats,
+} from './patient-financials';
 
 @ApiTags('Patients')
 @ApiBearerAuth()
@@ -28,6 +30,14 @@ export class PatientsController {
   async findAll(@ClinicId() clinicId: string, @Req() req: AppRequest, @Query() dto: SearchPatientsDto) {
     const result = await this.patientsService.findAll(clinicId, dto);
     return this.canSeeFinancials(req) ? result : redactPatientList(result);
+  }
+
+  /** Declared BEFORE ':id' so "stats" is not parsed as a patient id. */
+  @Get('stats')
+  @ApiOperation({ summary: 'Clinic patient counts (total, new this month, active in 30 days); outstanding total needs billing:read' })
+  async stats(@ClinicId() clinicId: string, @Req() req: AppRequest) {
+    const stats = await this.patientsService.getStats(clinicId);
+    return this.canSeeFinancials(req) ? stats : redactPatientStats(stats);
   }
 
   @Get(':id')
@@ -64,18 +74,21 @@ export class PatientsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new patient' })
-  create(@ClinicId() clinicId: string, @Body() dto: CreatePatientDto) {
-    return this.patientsService.create(clinicId, dto);
+  async create(@ClinicId() clinicId: string, @Req() req: AppRequest, @Body() dto: CreatePatientDto) {
+    const patient = await this.patientsService.create(clinicId, dto);
+    return this.canSeeFinancials(req) ? patient : redactPatientRecord(patient);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update patient profile' })
-  update(
+  async update(
     @ClinicId() clinicId: string,
+    @Req() req: AppRequest,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePatientDto,
   ) {
-    return this.patientsService.update(clinicId, id, dto);
+    const patient = await this.patientsService.update(clinicId, id, dto);
+    return this.canSeeFinancials(req) ? patient : redactPatientRecord(patient);
   }
 
   @Patch(':id/family-link')

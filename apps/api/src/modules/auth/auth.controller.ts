@@ -53,8 +53,14 @@ export class AuthController {
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke session' })
-  logout(@CurrentUser() user: AuthenticatedUser, @Body() dto: LogoutDto) {
-    return this.svc.logout(user.id, dto.refreshToken);
+  logout(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: LogoutDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    // Also revoke the access token used for this call (AuthService.logout supports it) so it stops working immediately.
+    const accessToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
+    return this.svc.logout(user.id, dto.refreshToken, accessToken);
   }
 
   @Get('me')

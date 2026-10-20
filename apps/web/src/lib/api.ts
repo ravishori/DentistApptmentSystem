@@ -75,7 +75,7 @@ export const patientsApi = {
   /** @deprecated use findOne */
   get: (id: string) => api.get(`/patients/${id}`).then(r => r.data.data),
   create: (dto: any) => api.post('/patients', dto).then(r => r.data.data),
-  update: (id: string, dto: any) => api.put(`/patients/${id}`, dto).then(r => r.data.data),
+  update: (id: string, dto: any) => api.patch(`/patients/${id}`, dto).then(r => r.data.data),
   getTimeline: (id: string) =>
     api.get(`/patients/${id}/timeline`).then(r => r.data.data),
   family: (id: string) => api.get(`/patients/${id}/family`).then(r => r.data.data),
@@ -94,7 +94,7 @@ export const appointmentsApi = {
   updateStatus: (id: string, dto: any) =>
     api.patch(`/appointments/${id}/status`, dto).then(r => r.data.data),
   reschedule: (id: string, dto: any) =>
-    api.patch(`/appointments/${id}/reschedule`, dto).then(r => r.data.data),
+    api.post(`/appointments/${id}/reschedule`, dto).then(r => r.data.data),
   todaySchedule: () => api.get('/appointments/today').then(r => r.data.data),
 };
 
@@ -162,6 +162,8 @@ export const reportsApi = {
 };
 
 // ─── Treatments ───────────────────────────────────────────────────────────────
+/** The /treatments controller is not mounted on the API yet (pending permission and price-visibility decisions). */
+export const TREATMENTS_API_AVAILABLE = false;
 export const treatmentsApi = {
   list: (params?: any) => api.get('/treatments', { params }).then(r => r.data.data),
   get: (id: string) => api.get(`/treatments/${id}`).then(r => r.data.data),
@@ -238,10 +240,10 @@ export const revenueApi = {
 };
 
 // ─── Users / Staff ────────────────────────────────────────────────────────────
+// The /users controller is intentionally NOT mounted (needs a tenant/authorisation review). Dentist lookups use the
+// reviewed, mounted GET /clinic/dentists; staff are created through POST /clinic/staff (admin only).
 export const usersApi = {
-  list: () => api.get('/users').then(r => r.data.data),
-  dentists: () => api.get('/users/dentists').then(r => r.data.data),
-  create: (dto: any) => api.post('/users', dto).then(r => r.data.data),
+  dentists: () => api.get('/clinic/dentists').then(r => r.data.data),
 };
 
 // ─── Documents ───────────────────────────────────────────────────────────────
@@ -373,7 +375,8 @@ export const clinicMgmtApi = {
 // ─── Notifications ────────────────────────────────────────────────────────────
 export const notificationsApi = {
   list: (params?: any) => api.get('/notifications', { params }).then(r => r.data.data),
-  markRead: (id: string) =>
-    api.patch(`/notifications/${id}/read`).then(r => r.data.data),
+  /** The API marks notifications read in bulk: PATCH /notifications/read { ids: string[] }. */
+  markRead: (ids: string | string[]) =>
+    api.patch('/notifications/read', { ids: Array.isArray(ids) ? ids : [ids] }).then(r => r.data.data),
   markAllRead: () => api.patch('/notifications/read-all').then(r => r.data.data),
 };

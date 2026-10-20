@@ -1,7 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { treatmentsApi } from '@/lib/api';
+import { treatmentsApi, TREATMENTS_API_AVAILABLE } from '@/lib/api';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, statusVariant } from '@/components/ui/badge';
@@ -125,6 +126,28 @@ function TreatmentCard({ plan }: { plan: any }) {
 }
 
 export default function TreatmentsPage() {
+  if (!TREATMENTS_API_AVAILABLE) {
+    return (
+      <div>
+        <Header title="Treatment Plans" subtitle="Manage patient treatment plans" />
+        <div className="page-content">
+          <Card>
+            <CardContent>
+              <EmptyState
+                icon={<Stethoscope />}
+                title="Treatment plans are not available yet"
+                description="This feature is switched off until its access rules are approved. Record clinical work in the patient's EHR visits for now."
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  return <TreatmentsPageContent />;
+}
+
+function TreatmentsPageContent() {
   const [search, setSearch] = useState('');
 
   const { data, isLoading } = useQuery({

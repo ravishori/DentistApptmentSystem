@@ -184,7 +184,9 @@ export class AuthService {
 
     const refreshToken = this.jwt.sign(
       { sub: user.id },
-      { secret: this.config.get('jwt.refreshSecret'), expiresIn: '30d' },
+      // jwtid makes every refresh token unique. Without it two tokens issued for one user in the same second are
+      // byte-identical, so a rotated (revoked) token could be replayed against its own replacement.
+      { secret: this.config.get('jwt.refreshSecret'), expiresIn: '30d', jwtid: uuid() },
     );
 
     await this.prisma.userSession.create({

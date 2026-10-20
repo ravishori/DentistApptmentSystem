@@ -1,6 +1,7 @@
 import {
   IsEmail, IsString, MinLength, IsOptional, Matches,
 } from 'class-validator';
+import { KeepRaw } from '../../../common/validators/keep-raw';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
@@ -22,6 +23,7 @@ export class RegisterDto {
   phone: string;
 
   @ApiProperty({ minLength: 8 })
+  @KeepRaw()
   @IsString()
   @MinLength(8)
   password: string;

@@ -1,4 +1,5 @@
 import { IsEmail, IsString, IsOptional } from 'class-validator';
+import { KeepRaw } from '../../../common/validators/keep-raw';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
@@ -7,6 +8,7 @@ export class LoginDto {
   email: string;
 
   @ApiProperty()
+  @KeepRaw()
   @IsString()
   password: string;
 

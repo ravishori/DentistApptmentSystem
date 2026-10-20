@@ -11,7 +11,7 @@ if (!ok) {
   console.error('REFUSED: DATABASE_URL must point to a local, disposable database whose name contains test/tmp/disposable/e2e (never dentalease_db).');
   process.exit(3);
 }
-if (!process.env.API_BASE || !process.env.JWT_SECRET) {
-  console.error('REFUSED: set API_BASE (e.g. http://127.0.0.1:3011/api/v1) and JWT_SECRET (the test API process secret).');
+if (!process.env.API_BASE || (!process.env.JWT_SECRET && !process.env.E2E_NO_SECRET)) {
+  console.error('REFUSED: set API_BASE (e.g. http://127.0.0.1:3011/api/v1) and JWT_SECRET (the test API process secret; not needed when E2E_NO_SECRET=1).');
   process.exit(3);
 }
