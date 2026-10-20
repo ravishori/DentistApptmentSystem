@@ -2,14 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ReportFormat } from './dto/report.dto';
 
-interface DailyRevenueRow {
+export interface DailyRevenueRow {
   [key: string]: unknown;
   date:    string;
   revenue: number;
   invoices: number;
 }
 
-interface OutstandingRow {
+export interface OutstandingRow {
   [key: string]: unknown;
   patientId:   string;
   patientName: string;

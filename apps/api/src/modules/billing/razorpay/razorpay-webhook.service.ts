@@ -39,6 +39,10 @@ export class RazorpayWebhookService {
     private readonly prisma:   PrismaService,
   ) {}
 
+  isAuthentic(rawBody: Buffer, signature: string | undefined): boolean {
+    return this.razorpay.verifyWebhookSignature(rawBody, signature ?? '');
+  }
+
   async process(rawBody: Buffer, signature: string, payload: any): Promise<void> {
     // ── 1. Verify HMAC signature ──────────────────────────────────────────────
     const isValid = this.razorpay.verifyWebhookSignature(rawBody, signature ?? '');
@@ -94,6 +98,10 @@ export class RazorpayWebhookService {
       this.logger.warn(`payment.captured missing notes — orderId: ${entity.order_id}`);
       return;
     }
+    if (!this.isSettledPayment(entity)) {
+      this.logger.error(`payment.captured with invalid/unsettled payment entity — NOT recorded`);
+      return;
+    }
 
     await this.razorpay.recordSuccessfulPayment({
       clinicId,
@@ -136,15 +144,25 @@ export class RazorpayWebhookService {
   // notes.invoiceId was embedded when we created the payment link.
 
   private async onPaymentLinkPaid(payload: any) {
-    const linkEntity    = payload.payload.payment_link.entity;
-    const paymentEntity = payload.payload.payment?.entity;
+    const linkEntity    = payload.payload?.payment_link?.entity;
+    const paymentEntity = payload.payload?.payment?.entity;
 
-    const invoiceId = linkEntity.notes?.invoiceId as string | undefined;
-    const clinicId  = linkEntity.notes?.clinicId  as string | undefined;
-    const patientId = linkEntity.notes?.patientId as string | undefined;
+    const invoiceId = linkEntity?.notes?.invoiceId as string | undefined;
+    const clinicId  = linkEntity?.notes?.clinicId  as string | undefined;
+    const patientId = linkEntity?.notes?.patientId as string | undefined;
 
     if (!invoiceId || !clinicId) {
-      this.logger.warn(`payment_link.paid missing notes — linkId: ${linkEntity.id}`);
+      this.logger.warn(`payment_link.paid missing notes — linkId: ${linkEntity?.id}`);
+      return;
+    }
+
+    // Evidence required to book money: the gateway's own payment id and a settled status.
+    // A payment id is never invented — without one there is nothing to make the booking idempotent,
+    // so the event is rejected for manual reconciliation instead of risking a double credit.
+    if (!this.isSettledPayment(paymentEntity)) {
+      this.logger.error(
+        `payment_link.paid for link ${linkEntity?.id} lacks a settled payment entity/id — NOT recorded; reconcile manually`,
+      );
       return;
     }
 
@@ -152,10 +170,11 @@ export class RazorpayWebhookService {
       clinicId,
       invoiceId,
       patientId:         patientId ?? await this.resolvePatientId(invoiceId),
-      amountPaid:        linkEntity.amount_paid / 100,
+      // This payment's own amount: link.amount_paid is cumulative and would double-count earlier partial payments
+      amountPaid:        paymentEntity.amount / 100,
       razorpayOrderId:   linkEntity.id,
-      razorpayPaymentId: paymentEntity?.id ?? `pl_${linkEntity.id}`,
-      method:            paymentEntity?.method ?? 'payment_link',
+      razorpayPaymentId: paymentEntity.id,
+      method:            paymentEntity.method ?? 'payment_link',
     });
   }
 
@@ -170,7 +189,11 @@ export class RazorpayWebhookService {
     const clinicId  = linkEntity.notes?.clinicId  as string | undefined;
     const patientId = linkEntity.notes?.patientId as string | undefined;
 
-    if (!invoiceId || !clinicId || !paymentEntity) return;
+    if (!invoiceId || !clinicId) return;
+    if (!this.isSettledPayment(paymentEntity)) {
+      this.logger.error(`payment_link.partially_paid for link ${linkEntity?.id} lacks a settled payment entity/id — NOT recorded`);
+      return;
+    }
 
     await this.razorpay.recordSuccessfulPayment({
       clinicId,
@@ -206,6 +229,14 @@ export class RazorpayWebhookService {
       amountRefunded:    entity.amount / 100,
       speed:             entity.speed_processed ?? 'normal',
     });
+  }
+
+  /** A payment entity is acceptable evidence only with a real id, a positive amount and captured/authorized status. */
+  private isSettledPayment(p: any): boolean {
+    return !!p
+      && typeof p.id === 'string' && /^pay_[A-Za-z0-9]+$/.test(p.id)
+      && Number.isFinite(p.amount) && p.amount > 0
+      && (p.status === undefined || ['captured', 'authorized'].includes(p.status));
   }
 
   // ── Utility ───────────────────────────────────────────────────────────────

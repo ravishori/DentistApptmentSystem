@@ -1,6 +1,7 @@
 import { Process, Processor } from '@nestjs/bull';
 import { Logger } from '@nestjs/common';
 import { Job } from 'bull';
+import { NotificationChannel, NotificationStatus } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NOTIFICATION_QUEUE, NotificationJob } from '../notifications.service';
 
@@ -18,8 +19,12 @@ export class NotificationsProcessor {
     try {
       if (userId) {
         // Targeted notification
+        // In-app staff notifications use the 'push' channel of the Notification model
         await this.prisma.notification.create({
-          data: { clinicId, userId, type, title, body, data: data ?? {}, isRead: false },
+          data: {
+            clinicId, userId, type, subject: title, body, params: data ?? {},
+            channel: NotificationChannel.push, status: NotificationStatus.sent, sentAt: new Date(),
+          },
         });
       } else {
         // Broadcast to all active staff in clinic
@@ -30,8 +35,8 @@ export class NotificationsProcessor {
 
         await this.prisma.notification.createMany({
           data: staff.map((u) => ({
-            clinicId, userId: u.id, type, title, body,
-            data: data ?? {}, isRead: false,
+            clinicId, userId: u.id, type, subject: title, body, params: data ?? {},
+            channel: NotificationChannel.push, status: NotificationStatus.sent, sentAt: new Date(),
           })),
         });
       }

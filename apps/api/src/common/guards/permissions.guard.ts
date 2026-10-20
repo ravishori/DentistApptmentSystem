@@ -4,6 +4,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 import { PERMISSIONS_KEY, Permission } from '../decorators/permissions.decorator';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { AuthenticatedUser } from '../types/request.types';
 
 /**
@@ -12,7 +13,7 @@ import { AuthenticatedUser } from '../types/request.types';
  * super_admin and clinic_admin bypass all checks (handled below).
  * dentist and receptionist each have a specific whitelist.
  */
-const ROLE_PERMISSIONS: Record<string, Set<Permission>> = {
+export const ROLE_PERMISSIONS: Record<string, Set<Permission>> = {
   dentist: new Set<Permission>([
     'patients:read',
     'appointments:read', 'appointments:write',
@@ -32,6 +33,13 @@ const ROLE_PERMISSIONS: Record<string, Set<Permission>> = {
   ]),
 };
 
+/** True when the role holds the permission (owners/admins hold every permission). */
+export function roleHasPermission(role: UserRole | string | undefined, permission: Permission): boolean {
+  if (!role) return false;
+  if (role === UserRole.super_admin || role === UserRole.clinic_admin) return true;
+  return ROLE_PERMISSIONS[role]?.has(permission) ?? false;
+}
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}
@@ -45,13 +53,18 @@ export class PermissionsGuard implements CanActivate {
     // No @RequirePermission() — pass through to RolesGuard
     if (!required?.length) return true;
 
-    const user: AuthenticatedUser = ctx.switchToHttp().getRequest().user;
+    // @Public() routes (payment-checkout callback, webhooks) are unauthenticated by design: they carry no user,
+    // so a class-level permission must not be evaluated (it used to crash with a TypeError → HTTP 500).
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [ctx.getHandler(), ctx.getClass()]);
+    if (isPublic) return true;
+
+    const user: AuthenticatedUser | undefined = ctx.switchToHttp().getRequest().user;
+    if (!user) throw new ForbiddenException('Authentication required');
 
     // Admins have all permissions
     if (
       user.role === UserRole.super_admin ||
-      user.role === UserRole.clinic_admin ||
-      (user.role as string) === 'admin'
+      user.role === UserRole.clinic_admin
     ) {
       return true;
     }

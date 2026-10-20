@@ -1,7 +1,7 @@
 import {
   IsString, IsOptional, IsUUID, IsArray, ValidateNested,
-  IsNumber, Min, IsBoolean,
-} from 'class-validator';
+  IsNumber, Min, } from 'class-validator';
+import { IsStrictBoolean } from '../../../common/validators/strict-boolean';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -60,5 +60,5 @@ export class CreateTemplateDto {
 
 export class GeneratePdfDto {
   @ApiPropertyOptional({ default: false, description: 'Upload to S3 and return URL' })
-  @IsOptional() @IsBoolean() upload?: boolean;
+  @IsOptional() @IsStrictBoolean() upload?: boolean;
 }

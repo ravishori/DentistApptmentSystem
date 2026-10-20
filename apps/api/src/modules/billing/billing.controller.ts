@@ -1,6 +1,7 @@
+import { Throttle } from '@nestjs/throttler';
 import {
   Controller, Get, Post, Patch, Param, Body, Query,
-  ParseUUIDPipe, HttpCode, HttpStatus, Res,
+  ParseUUIDPipe, HttpCode, HttpStatus, Res, Req, UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
@@ -21,10 +22,19 @@ import { CreateInsuranceClaimDto, UpdateInsuranceClaimDto } from './dto/insuranc
 import { RecordManualPaymentDto } from './dto/manual-payment.dto';
 import { ReportQueryDto, ReportFormat } from './dto/report.dto';
 import { Public } from '../../common/decorators/public.decorator';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 import { ClinicId, UserId } from '../../common/decorators/current-user.decorator';
+import { AppRequest } from '../../common/types/request.types';
+import { RevenueAccessGuard } from '../analytics/revenue/revenue-access.guard';
+import { RevenueAccessService } from '../analytics/revenue/revenue-access.service';
+import { redactBillingStats } from '../analytics/revenue/financial-redaction';
 
 @ApiTags('Billing')
 @ApiBearerAuth()
+// Invoices, balances, payments, packages, insurance and reports are billing data: every route needs billing:read
+// (dentist, receptionist, admins). Mutating routes override this with billing:write (receptionist, admins).
+// @Public() routes (checkout callback) are exempt and handled by the permissions guard.
+@RequirePermission('billing:read')
 @Controller({ path: 'billing', version: '1' })
 export class BillingController {
   constructor(
@@ -33,6 +43,7 @@ export class BillingController {
     private readonly packagesService:  PackagesService,
     private readonly insuranceService: InsuranceService,
     private readonly reportsService:   ReportsService,
+    private readonly revenueAccess:    RevenueAccessService,
   ) {}
 
   // ── Invoices ──────────────────────────────────────────────────────────────
@@ -53,6 +64,7 @@ export class BillingController {
   }
 
   @Post('invoices')
+  @RequirePermission('billing:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create invoice with line items; calculates GST automatically' })
   create(@ClinicId() clinicId: string, @Body() dto: CreateInvoiceDto) {
@@ -61,13 +73,16 @@ export class BillingController {
 
   @Get('stats')
   @ApiOperation({ summary: 'Billing stats — this-month revenue, outstanding, counts' })
-  stats(@ClinicId() clinicId: string) {
-    return this.billingService.stats(clinicId);
+  async stats(@ClinicId() clinicId: string, @Req() req: AppRequest) {
+    const stats = await this.billingService.stats(clinicId);
+    // Invoice counts are operational; this-month revenue and the outstanding total are private.
+    return (await this.revenueAccess.canViewRequest(req)) ? stats : redactBillingStats(stats);
   }
 
   // ── Razorpay Order (in-browser checkout) ─────────────────────────────────
 
   @Post('invoices/:id/order')
+  @RequirePermission('billing:write')
   @ApiOperation({
     summary: 'Create Razorpay Order for in-browser checkout (embeds in your page)',
     description: 'Returns orderId + key for Razorpay.js. After payment the client calls /payments/verify.',
@@ -81,6 +96,7 @@ export class BillingController {
 
   /** Kept for backwards-compat — same as /order */
   @Post('invoices/:id/pay')
+  @RequirePermission('billing:write')
   @ApiOperation({ summary: 'Alias for /order (backwards-compat)' })
   createOrderAlias(
     @ClinicId() clinicId: string,
@@ -91,21 +107,24 @@ export class BillingController {
 
   @Post('payments/verify')
   @Public()
+  // Anonymous endpoint that reaches the payment gateway: much tighter than the global 100/min
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Verify Razorpay HMAC signature after client-side checkout',
     description: 'Call this from the browser after rzp.on("payment.success"). Idempotent.',
   })
   verifyPayment(
-    @ClinicId() clinicId: string,
+    @ClinicId() clinicId: string | undefined,
     @Body() dto: VerifyOrderPaymentDto,
   ) {
-    return this.razorpayService.verifyOrderPayment(clinicId, dto as any);
+    return this.razorpayService.verifyOrderPayment(clinicId, dto);
   }
 
   // ── Razorpay Payment Link (shareable, WhatsApp-friendly) ─────────────────
 
   @Post('invoices/:id/payment-link')
+  @RequirePermission('billing:write')
   @ApiOperation({
     summary: 'Create a Razorpay Payment Link and dispatch via WhatsApp',
     description:
@@ -137,6 +156,7 @@ export class BillingController {
   // ── Manual payment ────────────────────────────────────────────────────────
 
   @Post('invoices/:id/payments')
+  @RequirePermission('billing:write')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Record a manual (cash/UPI/card/etc.) payment on an invoice' })
   recordManualPayment(
@@ -151,6 +171,7 @@ export class BillingController {
   // ── Invoice lifecycle ─────────────────────────────────────────────────────
 
   @Patch('invoices/:id/cancel')
+  @RequirePermission('billing:write')
   @ApiOperation({ summary: 'Cancel a draft or unpaid invoice' })
   cancel(
     @ClinicId() clinicId: string,
@@ -168,6 +189,7 @@ export class BillingController {
   }
 
   @Post('packages')
+  @RequirePermission('billing:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a treatment package (bundle)' })
   createPackage(@ClinicId() clinicId: string, @Body() dto: CreateTreatmentPackageDto) {
@@ -181,6 +203,7 @@ export class BillingController {
   }
 
   @Patch('packages/:id')
+  @RequirePermission('billing:write')
   @ApiOperation({ summary: 'Update package (name / price / active status)' })
   updatePackage(
     @ClinicId() clinicId: string,
@@ -203,6 +226,7 @@ export class BillingController {
   }
 
   @Post('enrollments')
+  @RequirePermission('billing:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Enroll a patient in a package with optional installment plan' })
   enrollPatient(@ClinicId() clinicId: string, @Body() dto: EnrollPatientDto) {
@@ -219,6 +243,7 @@ export class BillingController {
   }
 
   @Post('enrollments/mark-visit')
+  @RequirePermission('billing:write')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark one visit as completed in an enrollment' })
   markVisitCompleted(@ClinicId() clinicId: string, @Body() dto: MarkVisitCompletedDto) {
@@ -238,6 +263,7 @@ export class BillingController {
   }
 
   @Post('insurance-claims')
+  @RequirePermission('billing:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Raise an insurance claim against an invoice' })
   createClaim(@ClinicId() clinicId: string, @Body() dto: CreateInsuranceClaimDto) {
@@ -254,6 +280,7 @@ export class BillingController {
   }
 
   @Patch('insurance-claims/:id')
+  @RequirePermission('billing:write')
   @ApiOperation({ summary: 'Update claim status / approved/reimbursed amounts' })
   updateClaim(
     @ClinicId() clinicId: string,
@@ -266,6 +293,7 @@ export class BillingController {
   // ── Reports ───────────────────────────────────────────────────────────────
 
   @Get('reports/daily-revenue')
+  @UseGuards(RevenueAccessGuard)
   @ApiOperation({ summary: 'Daily revenue breakdown for a date range' })
   async getDailyRevenue(
     @ClinicId() clinicId: string,
@@ -281,6 +309,7 @@ export class BillingController {
   }
 
   @Get('reports/outstanding')
+  @UseGuards(RevenueAccessGuard)
   @ApiOperation({ summary: 'Outstanding dues with 30/60/90/90+ day aging buckets' })
   async getOutstandingDues(
     @ClinicId() clinicId: string,
@@ -296,6 +325,7 @@ export class BillingController {
   }
 
   @Get('reports/gst')
+  @UseGuards(RevenueAccessGuard)
   @ApiOperation({ summary: 'Month-wise GST report with CGST/SGST/IGST breakdown' })
   async getGstReport(
     @ClinicId() clinicId: string,

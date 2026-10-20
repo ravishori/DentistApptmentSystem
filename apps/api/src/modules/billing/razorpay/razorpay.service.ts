@@ -27,7 +27,13 @@ import Razorpay from 'razorpay';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreatePaymentLinkDto } from '../dto/payment-link.dto';
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod, Prisma } from '@prisma/client';
+
+/** Constant-time hex comparison that never throws on malformed or differently-sized input. */
+function safeEqualHex(expectedHex: string, actualHex: string | undefined): boolean {
+  if (!actualHex || !/^[0-9a-f]+$/i.test(actualHex) || actualHex.length !== expectedHex.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(expectedHex, 'hex'), Buffer.from(actualHex, 'hex'));
+}
 
 /** Map gateway-reported method strings onto the PaymentMethod enum in schema.prisma. */
 function toPaymentMethod(raw: string): PaymentMethod {
@@ -66,13 +72,13 @@ export class RazorpayService {
         invoiceId,
         clinicId,
         patientId:  invoice.patientId,
-        patientName: (invoice as any).patient?.fullName ?? '',
+        patientName: invoice.patient.fullName,
       },
     });
 
     await this.prisma.invoice.update({
       where: { id: invoiceId },
-      data:  { razorpayOrderId: order.id, status: 'sent' },
+      data:  { razorpayOrderId: order.id, ...(invoice.status === 'draft' && { status: 'sent' as const }) },
     });
 
     this.logger.log(`Order created: ${order.id} for invoice ${invoice.invoiceNumber}`);
@@ -84,7 +90,7 @@ export class RazorpayService {
       currency:      order.currency,
       key:           this.config.get<string>('razorpay.keyId'),
       invoiceNumber: invoice.invoiceNumber,
-      patientName:   (invoice as any).patient?.fullName ?? '',
+      patientName:   invoice.patient.fullName,
       description:   `Payment for ${invoice.invoiceNumber}`,
     };
   }
@@ -95,15 +101,15 @@ export class RazorpayService {
     const invoice = await this.loadInvoice(clinicId, invoiceId);
     this.assertPayable(invoice);
 
-    const patient = (invoice as any).patient;
+    const patient = invoice.patient;
     const amountPaise = Math.round(Number(invoice.balanceAmount) * 100);
     const expireBy = Math.floor(Date.now() / 1000) + (dto?.expiryHours ?? 48) * 3600;
 
-    const link = await (this.rzp as any).paymentLink.create({
+    const link = await this.rzp.paymentLink.create({
       amount:      amountPaise,
       currency:    'INR',
       accept_partial: dto?.acceptPartial ?? false,
-      description: `Invoice ${invoice.invoiceNumber} — ${(invoice as any).clinic?.clinicName ?? 'DentalEase'}`,
+      description: `Invoice ${invoice.invoiceNumber} — ${invoice.clinic.name}`,
       expire_by:   expireBy,
       reference_id: invoice.invoiceNumber,
       customer: {
@@ -128,9 +134,8 @@ export class RazorpayService {
     await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {
-        status:              'sent',
-        razorpayOrderId:     link.id,          // store payment-link id
-        razorpayPaymentLink: link.short_url,
+        ...(invoice.status === 'draft' && { status: 'sent' as const }),
+        razorpayOrderId:     link.id,   // payment-link id; short_url is returned/emitted, not persisted (no column)
       },
     });
 
@@ -155,7 +160,13 @@ export class RazorpayService {
 
   // ── 3. Client-side signature verification (Order flow) ────────────────────
 
-  async verifyOrderPayment(clinicId: string, dto: {
+  /**
+   * @param clinicId  Tenant from the caller's JWT, or undefined for the anonymous checkout callback
+   *                  (@Public route: the tenant middleware only sets it when a Bearer token is sent).
+   *                  When absent the clinic is taken from the invoice AFTER the signed order has been
+   *                  proven to belong to that invoice; when present it must match.
+   */
+  async verifyOrderPayment(clinicId: string | undefined, dto: {
     razorpay_order_id:   string;
     razorpay_payment_id: string;
     razorpay_signature:  string;
@@ -171,18 +182,39 @@ export class RazorpayService {
       .update(`${dto.razorpay_order_id}|${dto.razorpay_payment_id}`)
       .digest('hex');
 
-    if (expected !== dto.razorpay_signature) {
+    if (!safeEqualHex(expected, dto.razorpay_signature)) {
       throw new BadRequestException('Invalid Razorpay signature');
     }
 
-    const invoice = await this.loadInvoice(clinicId, dto.invoiceId);
+    const invoice = await this.prisma.invoice.findFirst({
+      where:   { id: dto.invoiceId, ...(clinicId && { clinicId }) },
+      include: {
+        patient: { select: { id: true, fullName: true, phone: true, email: true, waOptIn: true } },
+        clinic:  { select: { name: true } },
+      },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
     if (invoice.status === 'paid') return { success: true, alreadyPaid: true };
 
+    // The signed order must be the one we created for THIS invoice; otherwise a valid
+    // signature from a different (cheaper) order could be replayed against this invoice.
+    if (!invoice.razorpayOrderId || invoice.razorpayOrderId !== dto.razorpay_order_id) {
+      this.logger.warn(`Order/invoice mismatch on verify: invoice ${dto.invoiceId}`);
+      throw new BadRequestException('Order does not belong to this invoice');
+    }
+
+    // Confirm with Razorpay that the payment exists, belongs to the order and was authorised.
+    const rzpPayment = await this.rzp.payments.fetch(dto.razorpay_payment_id);
+    if (rzpPayment.order_id !== dto.razorpay_order_id
+        || !['captured', 'authorized'].includes(rzpPayment.status)) {
+      throw new BadRequestException('Payment is not completed for this order');
+    }
+
     await this.recordSuccessfulPayment({
-      clinicId,
+      clinicId:           invoice.clinicId,
       invoiceId:          dto.invoiceId,
       patientId:          invoice.patientId,
-      amountPaid:         Number(invoice.balanceAmount),
+      amountPaid:         Number(rzpPayment.amount) / 100,
       razorpayOrderId:    dto.razorpay_order_id,
       razorpayPaymentId:  dto.razorpay_payment_id,
       razorpaySignature:  dto.razorpay_signature,
@@ -197,19 +229,12 @@ export class RazorpayService {
   verifyWebhookSignature(rawBody: Buffer, signature: string): boolean {
     const webhookSecret = this.config.get<string>('razorpay.webhookSecret');
     if (!webhookSecret) {
-      this.logger.warn('RAZORPAY_WEBHOOK_SECRET not set — skipping verification');
-      return true;
+      // Fail closed: without a secret anyone could forge "payment captured" events.
+      this.logger.error('razorpay.webhookSecret is not configured — rejecting webhook');
+      return false;
     }
-
-    const expected = crypto
-      .createHmac('sha256', webhookSecret)
-      .update(rawBody)
-      .digest('hex');
-
-    return crypto.timingSafeEqual(
-      Buffer.from(expected, 'hex'),
-      Buffer.from(signature,  'hex'),
-    );
+    const expected = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
+    return safeEqualHex(expected, signature);
   }
 
   // ── 5. Atomic payment recording (shared by webhook + client verify) ────────
@@ -237,12 +262,19 @@ export class RazorpayService {
     const invoice = await this.prisma.invoice.findUniqueOrThrow({
       where: { id: params.invoiceId },
     });
+    if (invoice.clinicId !== params.clinicId) {
+      this.logger.error(`Tenant mismatch recording payment ${params.razorpayPaymentId}; ignored`);
+      return null;
+    }
+    params = { ...params, patientId: invoice.patientId };
 
     const newPaid    = Number(invoice.paidAmount) + params.amountPaid;
     const newBalance = Math.max(0, Number(invoice.totalAmount) - newPaid);
     const newStatus  = newBalance === 0 ? 'paid' : 'partially_paid';
 
-    const [payment] = await this.prisma.$transaction([
+    let payment;
+    try {
+    [payment] = await this.prisma.$transaction([
       this.prisma.payment.create({
         data: {
           clinicId:          params.clinicId,
@@ -273,6 +305,14 @@ export class RazorpayService {
         data:  { outstandingBalance: { decrement: params.amountPaid } },
       }),
     ]);
+    } catch (err) {
+      // Concurrent delivery of the same payment: razorpay_payment_id is UNIQUE, so the loser is a replay
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        this.logger.warn(`Duplicate payment ignored: ${params.razorpayPaymentId}`);
+        return null;
+      }
+      throw err;
+    }
 
     this.logger.log(
       `Payment recorded: ₹${params.amountPaid} on invoice ${params.invoiceId} → ${newStatus}`,
@@ -309,6 +349,11 @@ export class RazorpayService {
       return;
     }
 
+    if (params.amountRefunded <= 0 || params.amountRefunded > Number(originalPayment.amount)) {
+      this.logger.error(`Refund ${params.razorpayRefundId} amount invalid vs payment; needs manual review`);
+      return;
+    }
+
     // Idempotency check
     const existingRefund = await this.prisma.payment.findFirst({
       where: { razorpayPaymentId: params.razorpayRefundId },
@@ -323,37 +368,46 @@ export class RazorpayService {
     const newPaid    = Math.max(0, Number(invoice.paidAmount) - params.amountRefunded);
     const newBalance = Number(invoice.totalAmount) - newPaid;
 
-    await this.prisma.$transaction([
-      this.prisma.payment.create({
-        data: {
-          clinicId:          params.clinicId,
-          invoiceId:         originalPayment.invoiceId,
-          patientId:         originalPayment.patientId,
-          amount:            -params.amountRefunded,   // negative = refund
-          method:            'razorpay',
-          status:            'refunded',
-          razorpayOrderId:   originalPayment.razorpayOrderId,
-          razorpayPaymentId: params.razorpayRefundId,
-          paidAt:            new Date(),
-        },
-      }),
+    try {
+      await this.prisma.$transaction([
+        this.prisma.payment.create({
+          data: {
+            clinicId:          params.clinicId,
+            invoiceId:         originalPayment.invoiceId,
+            patientId:         originalPayment.patientId,
+            amount:            -params.amountRefunded,   // negative = refund
+            method:            'razorpay',
+            status:            'refunded',
+            razorpayOrderId:   originalPayment.razorpayOrderId,
+            razorpayPaymentId: params.razorpayRefundId,
+            paidAt:            new Date(),
+          },
+        }),
 
-      this.prisma.invoice.update({
-        where: { id: originalPayment.invoiceId },
-        data: {
-          paidAmount:    newPaid,
-          balanceAmount: newBalance,
-          status:        newPaid === 0 ? 'refunded' : 'partially_paid',
-        },
-      }),
+        this.prisma.invoice.update({
+          where: { id: originalPayment.invoiceId },
+          data: {
+            paidAmount:    newPaid,
+            balanceAmount: newBalance,
+            status:        newPaid === 0 ? 'refunded' : 'partially_paid',
+          },
+        }),
 
-      ...(originalPayment.patientId
-        ? [this.prisma.patient.update({
-            where: { id: originalPayment.patientId },
-            data:  { outstandingBalance: { increment: params.amountRefunded } },
-          })]
-        : []),
-    ]);
+        ...(originalPayment.patientId
+          ? [this.prisma.patient.update({
+              where: { id: originalPayment.patientId },
+              data:  { outstandingBalance: { increment: params.amountRefunded } },
+            })]
+          : []),
+      ]);
+    } catch (err) {
+      // Concurrent delivery of the same refund id: refund payment id is UNIQUE, so the loser is a replay
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        this.logger.warn(`Duplicate refund ignored: ${params.razorpayRefundId}`);
+        return;
+      }
+      throw err;
+    }
 
     this.emitter.emit('payment.refunded', {
       clinicId:        params.clinicId,
@@ -400,10 +454,12 @@ export class RazorpayService {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   private async loadInvoice(clinicId: string, invoiceId: string) {
+    // An undefined clinicId would make Prisma drop the filter and match invoices of ANY tenant
+    if (!clinicId) throw new BadRequestException('Clinic context is required');
     const invoice = await this.prisma.invoice.findFirst({
       where:   { id: invoiceId, clinicId },
       include: {
-        patient: { select: { id: true, fullName: true, phone: true, email: true } },
+        patient: { select: { id: true, fullName: true, phone: true, email: true, waOptIn: true } },
         clinic:  { select: { name: true } },
       },
     });

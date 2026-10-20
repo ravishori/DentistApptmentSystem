@@ -79,7 +79,7 @@
         "ts-jest",
         {
           "diagnostics": false,
-          "tsconfig": { "esModuleInterop": true, "experimentalDecorators": true, "emitDecoratorMetadata": true, "target": "ES2021", "module": "commonjs" }
+          "isolatedModules": true
         }
       ]
     },

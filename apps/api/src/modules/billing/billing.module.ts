@@ -7,8 +7,10 @@ import { RazorpayWebhookService } from './razorpay/razorpay-webhook.service';
 import { PackagesService } from './packages.service';
 import { InsuranceService } from './insurance.service';
 import { ReportsService } from './reports.service';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
+  imports: [AnalyticsModule],   // RevenueAccessService / RevenueAccessGuard (private financial reports)
   controllers: [
     BillingController,
     RazorpayWebhookController,

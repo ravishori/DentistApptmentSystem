@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { secretWeakness } from '../../config/validate-env';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LEN    = 16;
@@ -21,8 +22,13 @@ export class EncryptionService {
 
   constructor(private readonly config: ConfigService) {
     const raw = config.get<string>('encryption.key') ?? '';
-    if (!raw || raw.length < 32) {
-      this.logger.warn('ENCRYPTION_KEY is missing or too short — encryption will use a dev fallback');
+    const weak = !!secretWeakness(raw);
+    if (weak) {
+      // Never encrypt real data with a publicly known key: refuse to start in production.
+      if (config.get<string>('app.nodeEnv') === 'production') {
+        throw new Error('ENCRYPTION_KEY must be a strong, non-placeholder secret of at least 32 characters in production');
+      }
+      this.logger.warn('ENCRYPTION_KEY is missing, weak or a placeholder — using an INSECURE development fallback key');
     }
     // Key must be exactly 32 bytes for AES-256
     this.key = crypto.scryptSync(

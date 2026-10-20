@@ -21,10 +21,11 @@
 
 import {
   Controller, Post, Headers, RawBodyRequest,
-  Req, HttpCode, HttpStatus, Logger,
+  Req, HttpCode, HttpStatus, Logger, UnauthorizedException, BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../../common/decorators/public.decorator';
 import { RazorpayWebhookService } from './razorpay-webhook.service';
 
@@ -37,6 +38,8 @@ export class RazorpayWebhookController {
 
   @Post('razorpay')
   @Public()
+  // Server-to-server; allow Razorpay retries/bursts but cap forged-traffic floods
+  @Throttle({ default: { limit: 300, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Razorpay server-side webhook (HMAC-authenticated)' })
   @ApiExcludeEndpoint()
@@ -51,8 +54,17 @@ export class RazorpayWebhookController {
       return { received: true };
     }
 
-    // Signature check happens inside the service so it can log bad sigs cleanly
-    const payload = JSON.parse(rawBody.toString('utf8'));
+    // Authenticate BEFORE parsing or trusting any of the body
+    if (!this.webhookService.isAuthentic(rawBody, signature)) {
+      this.logger.error('Rejected Razorpay webhook: invalid or unverifiable signature');
+      throw new UnauthorizedException();
+    }
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody.toString('utf8'));
+    } catch {
+      throw new BadRequestException('Malformed payload');
+    }
 
     this.logger.log(`Razorpay webhook: ${payload.event} | entity: ${payload.payload?.payment?.entity?.id ?? payload.payload?.refund?.entity?.id ?? '?'}`);
 

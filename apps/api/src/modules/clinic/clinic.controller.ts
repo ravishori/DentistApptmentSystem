@@ -1,12 +1,15 @@
 import {
   Controller, Get, Patch, Post, Param, Body,
-  ParseUUIDPipe, HttpCode, HttpStatus,
+  ParseUUIDPipe, HttpCode, HttpStatus, Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { ClinicService } from './clinic.service';
 import { UpdateClinicDto } from './dto/update-clinic.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ClinicId } from '../../common/decorators/current-user.decorator';
+import { AppRequest } from '../../common/types/request.types';
+import { RevenueAccessService } from '../analytics/revenue/revenue-access.service';
+import { redactClinicStats } from '../analytics/revenue/financial-redaction';
 import { UserRole } from '@prisma/client';
 import {
   IsString, IsEmail, IsOptional, IsEnum,
@@ -25,7 +28,10 @@ class AddStaffDto {
 @ApiBearerAuth()
 @Controller({ path: 'clinic', version: '1' })
 export class ClinicController {
-  constructor(private readonly clinicService: ClinicService) {}
+  constructor(
+    private readonly clinicService: ClinicService,
+    private readonly revenueAccess:  RevenueAccessService,
+  ) {}
 
   @Get('profile')
   @ApiOperation({ summary: 'Get clinic profile (cached 5 min)' })
@@ -42,8 +48,10 @@ export class ClinicController {
 
   @Get('stats')
   @ApiOperation({ summary: 'Clinic dashboard stats (patients, today appts, outstanding)' })
-  getStats(@ClinicId() clinicId: string) {
-    return this.clinicService.getStats(clinicId);
+  async getStats(@ClinicId() clinicId: string, @Req() req: AppRequest) {
+    const stats = await this.clinicService.getStats(clinicId);
+    // Counts are for all staff; the outstanding balance is private
+    return (await this.revenueAccess.canViewRequest(req)) ? stats : redactClinicStats(stats);
   }
 
   @Get('dentists')

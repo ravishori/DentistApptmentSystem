@@ -9,10 +9,12 @@ import { TokenBlacklistService } from './token-blacklist.service';
 @Module({
   imports: [
     RedisModule.forRootAsync({
-      useFactory: (cfg: ConfigService) => ({
-        type: 'single',
-        url:  `redis://:${cfg.get('redis.password')}@${cfg.get('redis.host')}:${cfg.get('redis.port')}`,
-      }),
+      useFactory: (cfg: ConfigService) => {
+        const password = cfg.get<string>('redis.password');
+        // Without a password the URL must not contain ":undefined@" (it would be sent as the password)
+        const auth = password ? `:${encodeURIComponent(password)}@` : '';
+        return { type: 'single' as const, url: `redis://${auth}${cfg.get('redis.host')}:${cfg.get('redis.port')}` };
+      },
       inject: [ConfigService],
     }),
     JwtModule,

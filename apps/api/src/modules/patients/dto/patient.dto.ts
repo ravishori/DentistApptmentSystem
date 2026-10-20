@@ -1,7 +1,8 @@
 import {
-  IsString, IsEmail, IsOptional, IsEnum, IsBoolean, IsDateString,
+  IsString, IsEmail, IsOptional, IsEnum, IsDateString,
   IsUUID, IsInt, Min, Max,
 } from 'class-validator';
+import { IsStrictBoolean } from '../../../common/validators/strict-boolean';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -24,7 +25,7 @@ export class CreatePatientDto {
   @ApiPropertyOptional() @IsString() @IsOptional() allergies?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() medicalHistory?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() emergencyContact?: string;
-  @ApiPropertyOptional() @IsBoolean() @IsOptional() waOptIn?: boolean;
+  @ApiPropertyOptional() @IsStrictBoolean() @IsOptional() waOptIn?: boolean;
 }
 
 export class UpdatePatientDto {
@@ -38,7 +39,7 @@ export class UpdatePatientDto {
   @ApiPropertyOptional() @IsString() @IsOptional() allergies?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() medicalHistory?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() emergencyContact?: string;
-  @ApiPropertyOptional() @IsBoolean() @IsOptional() waOptIn?: boolean;
+  @ApiPropertyOptional() @IsStrictBoolean() @IsOptional() waOptIn?: boolean;
 }
 
 export class SearchPatientsDto {

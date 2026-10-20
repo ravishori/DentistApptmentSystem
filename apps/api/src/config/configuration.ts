@@ -36,6 +36,9 @@ export default () => ({
     authToken:       process.env.TWILIO_AUTH_TOKEN,
     whatsappNumber:  process.env.TWILIO_WHATSAPP_FROM ?? '+14155238886',
   },
+  encryption: {
+    key: process.env.ENCRYPTION_KEY,
+  },
   aws: {
     region:    process.env.AWS_REGION    ?? 'ap-south-1',
     accessKey: process.env.AWS_ACCESS_KEY_ID,

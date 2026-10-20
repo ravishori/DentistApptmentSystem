@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Param, Body, Query,
-  ParseUUIDPipe, HttpCode, HttpStatus,
+  ParseUUIDPipe, HttpCode, HttpStatus, Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { PatientsService } from './patients.service';
@@ -8,6 +8,9 @@ import {
   CreatePatientDto, UpdatePatientDto, SearchPatientsDto, LinkFamilyDto,
 } from './dto/patient.dto';
 import { ClinicId } from '../../common/decorators/current-user.decorator';
+import { AppRequest } from '../../common/types/request.types';
+import { roleHasPermission } from '../../common/guards/permissions.guard';
+import { redactPatientDetail, redactPatientList, redactPatientTimeline } from './patient-financials';
 
 @ApiTags('Patients')
 @ApiBearerAuth()
@@ -15,19 +18,27 @@ import { ClinicId } from '../../common/decorators/current-user.decorator';
 export class PatientsController {
   constructor(private readonly patientsService: PatientsService) {}
 
+  /** Patient-level money (balance, invoices, treatment prices) needs the billing:read permission. */
+  private canSeeFinancials(req: AppRequest): boolean {
+    return roleHasPermission(req.user?.role, 'billing:read');
+  }
+
   @Get()
   @ApiOperation({ summary: 'Search and list patients (paginated)' })
-  findAll(@ClinicId() clinicId: string, @Query() dto: SearchPatientsDto) {
-    return this.patientsService.findAll(clinicId, dto);
+  async findAll(@ClinicId() clinicId: string, @Req() req: AppRequest, @Query() dto: SearchPatientsDto) {
+    const result = await this.patientsService.findAll(clinicId, dto);
+    return this.canSeeFinancials(req) ? result : redactPatientList(result);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Patient detail with appointments, invoices, family' })
-  findOne(
+  async findOne(
     @ClinicId() clinicId: string,
+    @Req() req: AppRequest,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.patientsService.findOne(clinicId, id);
+    const patient = await this.patientsService.findOne(clinicId, id);
+    return this.canSeeFinancials(req) ? patient : redactPatientDetail(patient);
   }
 
   @Get(':id/family')
@@ -41,11 +52,13 @@ export class PatientsController {
 
   @Get(':id/timeline')
   @ApiOperation({ summary: 'Full appointment + invoice timeline for a patient' })
-  getTimeline(
+  async getTimeline(
     @ClinicId() clinicId: string,
+    @Req() req: AppRequest,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.patientsService.getTimeline(clinicId, id);
+    const timeline = await this.patientsService.getTimeline(clinicId, id);
+    return this.canSeeFinancials(req) ? timeline : redactPatientTimeline(timeline);
   }
 
   @Post()

@@ -1,7 +1,8 @@
 import {
-  IsString, IsOptional, IsInt, IsBoolean, IsEnum,
+  IsString, IsOptional, IsInt, IsEnum,
   IsUUID, IsDateString, Min, Max, Matches,
 } from 'class-validator';
+import { IsStrictBoolean } from '../../../common/validators/strict-boolean';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -25,7 +26,7 @@ export class UpdateChairDto {
   @ApiPropertyOptional() @IsString() @IsOptional() name?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() description?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() color?: string;
-  @ApiPropertyOptional() @IsBoolean() @IsOptional() isActive?: boolean;
+  @ApiPropertyOptional() @IsStrictBoolean() @IsOptional() isActive?: boolean;
 }
 
 // ── DoctorAvailability ────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ export class UpdateAvailabilityDto {
   @ApiPropertyOptional() @IsString() @IsOptional() startTime?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() endTime?: string;
   @ApiPropertyOptional() @IsInt() @Min(10) @Max(120) @IsOptional() slotMins?: number;
-  @ApiPropertyOptional() @IsBoolean() @IsOptional() isActive?: boolean;
+  @ApiPropertyOptional() @IsStrictBoolean() @IsOptional() isActive?: boolean;
   @ApiPropertyOptional() @IsDateString() @IsOptional() validFrom?: string;
   @ApiPropertyOptional() @IsDateString() @IsOptional() validUntil?: string;
 }
@@ -119,7 +120,7 @@ export class GenerateSlotsDto {
   @IsDateString() to: string;
 
   @ApiPropertyOptional({ description: 'Auto-assign chairs to generated slots' })
-  @IsBoolean() @IsOptional() autoAssignChair?: boolean;
+  @IsStrictBoolean() @IsOptional() autoAssignChair?: boolean;
 }
 
 // ── Book Appointment ──────────────────────────────────────────────────────────

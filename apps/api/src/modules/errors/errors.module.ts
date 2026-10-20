@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ErrorsController } from './errors.controller';
-import { ErrorEmailService } from '../../common/logger/error-email.service';
 
+// ErrorEmailService comes from the @Global() LoggerModule. Re-providing it here created a second
+// instance (second SMTP transport, second startup log, and a separate de-duplication window).
 @Module({
   controllers: [ErrorsController],
-  providers:   [ErrorEmailService],
-  exports:     [ErrorEmailService],
 })
 export class ErrorsModule {}

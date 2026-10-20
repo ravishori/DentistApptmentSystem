@@ -1,3 +1,4 @@
+import { NotificationType } from '@prisma/client';
 import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -9,7 +10,7 @@ export const NOTIFICATION_QUEUE = 'notifications';
 export interface NotificationJob {
   clinicId:    string;
   userId?:     string;
-  type:        string;
+  type:        NotificationType;
   title:       string;
   body:        string;
   data?:       Record<string, any>;
@@ -67,7 +68,7 @@ export class NotificationsService {
     await this.enqueue({
       clinicId,
       userId: appointment.dentistId,
-      type:   'appointment_booked',
+      type:   'appointment_confirmation',
       title:  'New Appointment',
       body:   `${appointment.patient.fullName} booked for ${appointment.startTime.slice(0, 5)}`,
       data:   { appointmentId: appointment.id },

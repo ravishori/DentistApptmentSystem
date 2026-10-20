@@ -1,5 +1,5 @@
 import {
-  Injectable, NotFoundException, ConflictException,
+  Injectable, NotFoundException, ConflictException, BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../cache/cache.service';
@@ -35,7 +35,15 @@ export class PatientsService {
 
   // ── Create ────────────────────────────────────────────────────────────────
 
+  /** Patient has no emergency-contact column yet (migration proposed): refuse rather than drop input silently. */
+  private rejectUnsupported(dto: { emergencyContact?: string }) {
+    if (dto.emergencyContact !== undefined) {
+      throw new BadRequestException('emergencyContact is not supported until the schema migration is applied');
+    }
+  }
+
   async create(clinicId: string, dto: CreatePatientDto) {
+    this.rejectUnsupported(dto);
     const existing = await this.prisma.patient.findFirst({
       where: { clinicId, phone: dto.phone },
     });
@@ -57,8 +65,8 @@ export class PatientsService {
         city:             dto.city,
         allergies:        toList(dto.allergies),
         medicalConditions: toList(dto.medicalHistory),
-        emergencyContact: dto.emergencyContact,
-        waOptIn:          dto.waOptIn ?? true,
+        // Consent is opt-IN: an omitted flag means NO WhatsApp messages (matches the schema default of false)
+        waOptIn:          dto.waOptIn ?? false,
       },
     });
   }
@@ -142,10 +150,11 @@ export class PatientsService {
   // ── Update ────────────────────────────────────────────────────────────────
 
   async update(clinicId: string, id: string, dto: UpdatePatientDto) {
+    this.rejectUnsupported(dto);
     const patient = await this.prisma.patient.findFirst({ where: { id, clinicId } });
     if (!patient) throw new NotFoundException('Patient not found');
 
-    const { bloodGroup, allergies, medicalHistory, dateOfBirth, gender, ...rest } = dto;
+    const { bloodGroup, allergies, medicalHistory, dateOfBirth, gender, emergencyContact: _unsupported, ...rest } = dto;
     return this.prisma.patient.update({
       where: { id },
       data:  {

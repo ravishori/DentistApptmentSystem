@@ -1,7 +1,7 @@
 import {
   IsString, IsOptional, IsNumber, IsInt, IsUUID, IsEnum,
-  IsArray, ValidateNested, Min, Max, IsDateString, IsBoolean,
-} from 'class-validator';
+  IsArray, ValidateNested, Min, Max, IsDateString, } from 'class-validator';
+import { IsStrictBoolean } from '../../../common/validators/strict-boolean';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -36,7 +36,7 @@ export class UpdateTreatmentPackageDto {
   @ApiPropertyOptional() @IsString() @IsOptional() name?: string;
   @ApiPropertyOptional() @IsString() @IsOptional() description?: string;
   @ApiPropertyOptional() @IsNumber() @Min(0) @IsOptional() totalPrice?: number;
-  @ApiPropertyOptional() @IsBoolean() @IsOptional() isActive?: boolean;
+  @ApiPropertyOptional() @IsStrictBoolean() @IsOptional() isActive?: boolean;
 }
 
 // ── Installment plan ──────────────────────────────────────────────────────────

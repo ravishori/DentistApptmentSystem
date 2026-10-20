@@ -1,7 +1,8 @@
 import {
-  IsBoolean, IsInt, IsOptional, Min, Max,
+  IsInt, IsOptional, Min, Max, IsString, IsUUID, Matches, MaxLength,
 } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsStrictBoolean } from '../../../common/validators/strict-boolean';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 
 export class CreatePaymentLinkDto {
@@ -17,27 +18,32 @@ export class CreatePaymentLinkDto {
     description: 'Allow the patient to pay a partial amount (default false)',
     default: false,
   })
-  @IsBoolean() @IsOptional()
+  @IsStrictBoolean() @IsOptional()
   acceptPartial?: boolean = false;
 
   @ApiPropertyOptional({
     description: 'Send Razorpay native SMS notification (we send WA ourselves)',
     default: false,
   })
-  @IsBoolean() @IsOptional()
+  @IsStrictBoolean() @IsOptional()
   notifySms?: boolean = false;
 
   @ApiPropertyOptional({
     description: 'Send Razorpay native email notification',
     default: false,
   })
-  @IsBoolean() @IsOptional()
+  @IsStrictBoolean() @IsOptional()
   notifyEmail?: boolean = false;
 }
 
+/**
+ * Body of the PUBLIC checkout-callback route. Every field needs a validator: the global
+ * ValidationPipe uses `whitelist: true`, which silently strips undecorated properties (the previous
+ * undecorated DTO produced an empty body, so verification could never succeed).
+ */
 export class VerifyOrderPaymentDto {
-  @ApiPropertyOptional() razorpay_order_id:   string;
-  @ApiPropertyOptional() razorpay_payment_id: string;
-  @ApiPropertyOptional() razorpay_signature:  string;
-  @ApiPropertyOptional() invoiceId:           string;
+  @ApiProperty() @IsString() @MaxLength(64) @Matches(/^order_[A-Za-z0-9]+$/) razorpay_order_id:   string;
+  @ApiProperty() @IsString() @MaxLength(64) @Matches(/^pay_[A-Za-z0-9]+$/)   razorpay_payment_id: string;
+  @ApiProperty() @IsString() @MaxLength(128) @Matches(/^[0-9a-fA-F]+$/)      razorpay_signature:  string;
+  @ApiProperty() @IsUUID()                                                   invoiceId:           string;
 }

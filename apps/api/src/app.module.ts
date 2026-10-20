@@ -6,6 +6,7 @@ import { BullModule } from '@nestjs/bull';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
 import configuration from './config/configuration';
+import { validateEnv } from './config/validate-env';
 import { PrismaModule } from './prisma/prisma.module';
 import { AppCacheModule } from './cache/cache.module';
 import { TenantMiddleware } from './common/middleware/tenant.middleware';
@@ -42,6 +43,7 @@ import { SanitizationMiddleware } from './common/middleware/sanitization.middlew
       isGlobal:   true,
       envFilePath: '../../.env',
       load:       [configuration],
+      validate:   validateEnv,   // production fails closed on weak/placeholder secrets
     }),
 
     // ── Rate limiting ────────────────────────────────────────────────────────

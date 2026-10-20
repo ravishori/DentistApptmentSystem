@@ -6,6 +6,7 @@ import {
   ApiTags, ApiBearerAuth, ApiOperation, ApiResponse,
 } from '@nestjs/swagger';
 import { IsString } from 'class-validator';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -24,6 +25,7 @@ export class AuthController {
   constructor(private readonly svc: AuthService) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @ApiOperation({ summary: 'Register a new clinic — creates tenant + admin user' })
   register(@Body() dto: RegisterDto) {
@@ -31,6 +33,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login and receive JWT pair' })
