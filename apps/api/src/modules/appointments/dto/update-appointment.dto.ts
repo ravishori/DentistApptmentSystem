@@ -1,5 +1,5 @@
 import {
-  IsEnum, IsString, IsOptional, IsUUID, IsDateString, Matches,
+  IsEnum, IsString, IsOptional, IsUUID, IsDateString, Matches, MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AppointmentStatus } from '@prisma/client';
@@ -11,11 +11,13 @@ export class UpdateAppointmentStatusDto {
 
   @ApiPropertyOptional({ example: 'Patient requested cancellation' })
   @IsString()
+  @MaxLength(500)
   @IsOptional()
   reason?: string;
 
   @ApiPropertyOptional()
   @IsString()
+  @MaxLength(5000)
   @IsOptional()
   clinicalNotes?: string;
 }
@@ -32,6 +34,7 @@ export class RescheduleAppointmentDto {
 
   @ApiPropertyOptional()
   @IsString()
+  @MaxLength(500)
   @IsOptional()
   reason?: string;
 }

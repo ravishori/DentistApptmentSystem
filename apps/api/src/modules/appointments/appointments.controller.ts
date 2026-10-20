@@ -17,6 +17,9 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, ClinicId } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/request.types';
 import { UserRole } from '@prisma/client';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
+import { roleHasPermission } from '../../common/guards/permissions.guard';
+import { redactAppointment, redactAppointments, redactAppointmentPage } from './appointment-financials';
 
 @ApiTags('Appointments')
 @ApiBearerAuth()
@@ -26,6 +29,11 @@ export class AppointmentsController {
     private readonly appointmentsService: AppointmentsService,
     private readonly slotsService: SlotsService,
   ) {}
+
+  /** Patient-level money on appointments (estimated cost, linked invoice, treatment prices) needs billing:read. */
+  private canSeeMoney(user: AuthenticatedUser | undefined): boolean {
+    return roleHasPermission(user?.role, 'billing:read');
+  }
 
   // ── Slots ─────────────────────────────────────────────────────────────────
 
@@ -77,71 +85,83 @@ export class AppointmentsController {
   @Get('today')
   @ApiOperation({ summary: "Today's appointment schedule" })
   @ApiQuery({ name: 'dentistId', required: false })
-  todaySchedule(
+  async todaySchedule(
     @ClinicId() clinicId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dentistId') dentistId?: string,
   ) {
-    return this.appointmentsService.todaySchedule(clinicId, dentistId);
+    const rows = await this.appointmentsService.todaySchedule(clinicId, dentistId);
+    return this.canSeeMoney(user) ? rows : redactAppointments(rows);
   }
 
   // ── List ──────────────────────────────────────────────────────────────────
 
   @Get()
   @ApiOperation({ summary: 'List / filter appointments (paginated)' })
-  findAll(
+  async findAll(
     @ClinicId() clinicId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query() filters: FilterAppointmentsDto,
   ) {
-    return this.appointmentsService.findAll(clinicId, filters);
+    const page = await this.appointmentsService.findAll(clinicId, filters);
+    return this.canSeeMoney(user) ? page : redactAppointmentPage(page);
   }
 
   // ── Single ────────────────────────────────────────────────────────────────
 
   @Get(':id')
   @ApiOperation({ summary: 'Get full appointment detail (treatments + invoice)' })
-  findOne(
+  async findOne(
     @ClinicId() clinicId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.appointmentsService.findOne(clinicId, id);
+    const appt = await this.appointmentsService.findOne(clinicId, id);
+    return this.canSeeMoney(user) ? appt : redactAppointment(appt);
   }
 
   // ── Book ──────────────────────────────────────────────────────────────────
 
   @Post()
+  @RequirePermission('appointments:write')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Book a new appointment' })
-  book(
+  async book(
     @ClinicId() clinicId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: BookAppointmentDto,
   ) {
-    return this.appointmentsService.book(clinicId, user.id, dto);
+    const appt = await this.appointmentsService.book(clinicId, user.id, dto);
+    return this.canSeeMoney(user) ? appt : redactAppointment(appt);
   }
 
   // ── Status ────────────────────────────────────────────────────────────────
 
   @Patch(':id/status')
+  @RequirePermission('appointments:write')
   @ApiOperation({ summary: 'Transition appointment status (FSM-guarded)' })
-  updateStatus(
+  async updateStatus(
     @ClinicId() clinicId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateAppointmentStatusDto,
   ) {
-    return this.appointmentsService.updateStatus(clinicId, id, dto, user.id);
+    const appt = await this.appointmentsService.updateStatus(clinicId, id, dto, user.id);
+    return this.canSeeMoney(user) ? appt : redactAppointment(appt);
   }
 
   // ── Reschedule ────────────────────────────────────────────────────────────
 
   @Post(':id/reschedule')
+  @RequirePermission('appointments:write')
   @ApiOperation({ summary: 'Reschedule appointment to a new date/time slot' })
-  reschedule(
+  async reschedule(
     @ClinicId() clinicId: string,
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: RescheduleAppointmentDto,
   ) {
-    return this.appointmentsService.reschedule(clinicId, id, dto, user.id);
+    const appt = await this.appointmentsService.reschedule(clinicId, id, dto, user.id);
+    return this.canSeeMoney(user) ? appt : redactAppointment(appt);
   }
 }

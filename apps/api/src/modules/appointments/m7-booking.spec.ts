@@ -65,12 +65,13 @@ describe('M7 booking consistency', () => {
   });
 
   it('cancel releases slot; slot can be rebooked', async () => {
-    const { api, slots } = makeDb();
+    const { api, slots, appts } = makeDb();
     const svc = new AppointmentsService(api, cache, emitter);
     const a = await svc.book('c1', 'u1', dto());
     expect(slots[0].isBooked).toBe(true);
     await svc.updateStatus('c1', a.id, { status: 'cancelled', reason: 'x' } as any, 'u1');
     expect(slots[0].isBooked).toBe(false);
+    expect(appts.find((x) => x.id === a.id).slot).toEqual({ disconnect: true });
     await expect(svc.book('c1', 'u1', dto())).resolves.toBeDefined();
   });
 

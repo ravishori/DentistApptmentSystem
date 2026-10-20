@@ -216,6 +216,9 @@ export class AppointmentsService {
       data.cancelledAt   = new Date();
       data.cancelReason  = dto.reason;
       data.cancelledBy   = { connect: { id: actorId } };
+      // appointments.slot_id is UNIQUE: detach so the freed slot can be booked again
+      // (the appointment keeps its own date/time for history)
+      data.slot          = { disconnect: true };
 
     }
 
@@ -277,6 +280,7 @@ export class AppointmentsService {
       throw new BadRequestException('Appointment is already in the requested slot');
     }
 
+    const originalSlotId = original.slotId;
     const [cancelled, rescheduled] = await this.prisma.$transaction(async (tx) => {
       // Atomic claim of the new slot first; abort whole reschedule if lost the race
       const claimed = await tx.appointmentSlot.updateMany({
@@ -293,13 +297,14 @@ export class AppointmentsService {
           cancelledAt:       new Date(),
           cancelReason:      dto.reason ?? 'Rescheduled',
           cancelledById:     actorId,
+          slotId:            null,   // slot_id is UNIQUE; release it for the new booking
         },
       });
 
       // Release original slot
-      if (original.slotId) {
+      if (originalSlotId) {
         await tx.appointmentSlot.update({
-          where: { id: original.slotId },
+          where: { id: originalSlotId },
           data:  { isBooked: false },
         });
       }

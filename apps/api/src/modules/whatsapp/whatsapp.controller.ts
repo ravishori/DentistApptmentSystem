@@ -1,28 +1,18 @@
 import {
   Controller, Get, Post, Param, Body, Query,
-  ParseUUIDPipe, HttpCode, HttpStatus, Res,
+  ParseUUIDPipe, HttpCode, HttpStatus, Res, BadRequestException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { WhatsappService } from './whatsapp.service';
 import { WebhookHandler } from './webhook/webhook.handler';
-import { BookingFlow } from './flows/booking.flow';
+import { PublicBookingService } from './public-booking.service';
+import { SendTextDto, SendTemplateDto, StartBookingDto, paramsAreValid } from './dto/send-message.dto';
+import { RequirePermission } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ClinicId } from '../../common/decorators/current-user.decorator';
-import { IsString, IsObject, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-class SendTextDto {
-  @ApiProperty() @IsString() to: string;
-  @ApiProperty() @IsString() message: string;
-}
-
-class SendTemplateDto {
-  @ApiProperty() @IsString() to: string;
-  @ApiProperty() @IsString() templateName: string;
-  @ApiProperty() @IsObject() params: Record<string, string>;
-}
 
 @ApiTags('WhatsApp')
 @Controller({ path: 'whatsapp', version: '1' })
@@ -30,7 +20,7 @@ export class WhatsappController {
   constructor(
     private readonly whatsappService: WhatsappService,
     private readonly webhookHandler:  WebhookHandler,
-    private readonly bookingFlow:     BookingFlow,
+    private readonly publicBooking:   PublicBookingService,
     private readonly config:          ConfigService,
   ) {}
 
@@ -100,31 +90,41 @@ export class WhatsappController {
     return this.whatsappService.getMessages(clinicId, conversationId, +page, +limit);
   }
 
-  // ── Manual / test send ────────────────────────────────────────────────────
+  // ── Manual send (staff) ───────────────────────────────────────────────────
+  // Requires `whatsapp:send` (dentist, receptionist, admins; NOT assistant) and a recipient that is a patient of the
+  // CALLER'S clinic who has opted in. Rate limited per client.
 
   @Post('send')
+  @RequirePermission('whatsapp:send')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Send a plain text WhatsApp message (manual/testing)' })
-  sendText(@ClinicId() clinicId: string, @Body() dto: SendTextDto) {
+  @ApiOperation({ summary: 'Send a plain text WhatsApp message to an opted-in patient of this clinic' })
+  async sendText(@ClinicId() clinicId: string, @Body() dto: SendTextDto) {
+    await this.whatsappService.assertRecipientConsented(clinicId, dto.to);
     return this.whatsappService.sendText(clinicId, dto.to, dto.message);
   }
 
   @Post('send-template')
+  @RequirePermission('whatsapp:send')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Send a pre-approved template message' })
-  sendTemplate(@ClinicId() clinicId: string, @Body() dto: SendTemplateDto) {
+  @ApiOperation({ summary: 'Send an allow-listed template message to an opted-in patient of this clinic' })
+  async sendTemplate(@ClinicId() clinicId: string, @Body() dto: SendTemplateDto) {
+    if (!paramsAreValid(dto.params)) throw new BadRequestException('params must be at most 10 string values of 300 characters or less');
+    await this.whatsappService.assertRecipientConsented(clinicId, dto.to);
     return this.whatsappService.sendTemplate(clinicId, dto.to, dto.templateName, dto.params);
   }
 
-  // ── Start booking flow (for deep links / QR codes) ────────────────────────
+  // ── Start booking flow (public: QR / click-to-chat) ───────────────────────
+  // Strict per-IP throttle here; per-phone cooldown, clinic check and consent gate in PublicBookingService.
+  // Always answers 202 {accepted:true} so it cannot be used to probe patients or opt-out state.
 
   @Post('start-booking')
   @Public()
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Initiate booking flow for a phone number (QR / click-to-chat)' })
-  startBooking(
-    @Param('clinicId') clinicId: string,
-    @Body() dto: { phone: string },
-  ) {
-    return this.bookingFlow.start(dto.phone, clinicId);
+  startBooking(@Body() dto: StartBookingDto) {
+    return this.publicBooking.start(dto.clinicId, dto.phone);
   }
 }

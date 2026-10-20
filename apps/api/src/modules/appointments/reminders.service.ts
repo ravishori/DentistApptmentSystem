@@ -3,13 +3,17 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import dayjs from 'dayjs';
+import { claimReminder, confirmReminder, releaseReminder, ReminderStep } from './reminder-claim';
+import { twoHourWindow, isInTwoHourWindow } from './reminder-window';
 
 /**
  * RemindersService — cron-driven appointment reminder dispatcher.
  *
  * Runs every 30 minutes and emits domain events consumed by
  * WhatsApp / Notification modules via EventEmitter2.
- * Each appointment row carries a `reminderStatus` to prevent duplicate sends.
+ * Duplicate-safe and retry-safe: each send is wrapped in an atomic claim → deliver → confirm/release
+ * (see reminder-claim.ts). A failed delivery releases the claim so the next tick retries; the status only
+ * advances after delivery succeeded.
  */
 @Injectable()
 export class RemindersService {
@@ -23,96 +27,50 @@ export class RemindersService {
   @Cron('0 */30 * * * *', { name: 'appointment-reminders' })
   async dispatch() {
     this.logger.debug('Reminder cron tick');
-    await Promise.all([this.send24h(), this.send2h(), this.sendFollowup()]);
+    // 24h reminders and follow-ups are owned by ReminderFlow / FollowupFlow, which pin delivery to the configured
+    // provider with safe failover. Running them here too would let two schedulers race over the same appointment.
+    // The 2h reminder exists only on the event → 360Dialog path (Twilio has no 2h template), so it stays here.
+    await this.send2h();
   }
 
-  // ── 24-hour reminder ────────────────────────────────────────────────────
-
-  private async send24h() {
-    const tomorrow = dayjs().add(1, 'day').format('YYYY-MM-DD');
-
-    const appts = await this.prisma.appointment.findMany({
-      where: {
-        appointmentDate: new Date(tomorrow),
-        status:          'scheduled',
-        reminderStatus:  'pending',
-        patient:         { waOptIn: true },
-      },
-      include: {
-        patient: { select: { id: true, fullName: true, phone: true, waOptIn: true } },
-        dentist: { select: { fullName: true } },
-        clinic:  { select: { id: true, name: true } },
-      },
-    });
-
-    for (const appt of appts) {
-      this.emitter.emit('appointment.reminder_24h', { appointment: appt });
-
-      await this.prisma.appointment.update({
-        where: { id: appt.id },
-        data:  { reminderStatus: 'sent_24h', reminder24hAt: new Date() },
-      });
-
-      this.logger.log(`24h reminder queued → appt ${appt.id}`);
+  /** Claim, emit and AWAIT the listeners, then confirm; on any failure release so it is retried. */
+  private async deliver(apptId: string, step: ReminderStep, event: string, appointment: unknown): Promise<void> {
+    if (!(await claimReminder(this.prisma, apptId, step))) return;   // someone else owns it / already sent
+    try {
+      await this.emitter.emitAsync(event, { appointment });          // listeners use suppressErrors:false → rejects on failure
+      await confirmReminder(this.prisma, apptId, step);
+    } catch (err) {
+      await releaseReminder(this.prisma, apptId, step);
+      this.logger.error(`${step} reminder delivery failed → appt ${apptId}: ${(err as Error).message} (will retry)`);
     }
   }
 
   // ── 2-hour reminder ─────────────────────────────────────────────────────
 
   private async send2h() {
-    const today   = dayjs().format('YYYY-MM-DD');
-    const nowTime = dayjs().format('HH:mm:ss');
-    const in2h    = dayjs().add(2, 'hour').format('HH:mm:ss');
+    // Real date-time window (may span two calendar dates), not a time-of-day string compare — see reminder-window.ts
+    const now = new Date();
+    const { dates } = twoHourWindow(now);
 
-    const appts = await this.prisma.appointment.findMany({
+    const candidates = await this.prisma.appointment.findMany({
       where: {
-        appointmentDate: new Date(today),
-        startTime:       { gte: nowTime, lte: in2h },
+        appointmentDate: { in: dates.map((d) => new Date(d)) },
+        // never remind about a cancelled / completed / no-show appointment (the reminder status survives those)
+        status:          { in: ['scheduled', 'confirmed'] },
         reminderStatus:  'sent_24h',
         patient:         { waOptIn: true },
       },
       include: {
-        patient: { select: { id: true, fullName: true, phone: true } },
+        // waOptIn MUST be selected: the 360Dialog listener re-checks consent on this payload and silently skips
+        // (while the scheduler marks the reminder sent) when the flag is missing
+        patient: { select: { id: true, fullName: true, phone: true, waOptIn: true } },
         clinic:  { select: { id: true, name: true } },
       },
     });
+    const appts = candidates.filter((a) => isInTwoHourWindow(a.appointmentDate, a.startTime, now));
 
     for (const appt of appts) {
-      this.emitter.emit('appointment.reminder_2h', { appointment: appt });
-
-      await this.prisma.appointment.update({
-        where: { id: appt.id },
-        data:  { reminderStatus: 'sent_2h', reminder2hAt: new Date() },
-      });
-    }
-  }
-
-  // ── Post-visit follow-up (sent 24h after completion) ────────────────────
-
-  private async sendFollowup() {
-    const threshold = dayjs().subtract(24, 'hour').toDate();
-
-    const appts = await this.prisma.appointment.findMany({
-      where: {
-        status:         'completed',
-        reminderStatus: 'sent_2h',
-        updatedAt:      { lte: threshold },
-        patient:        { waOptIn: true },
-      },
-      include: {
-        patient: { select: { id: true, fullName: true, phone: true } },
-        dentist: { select: { fullName: true } },
-        clinic:  { select: { id: true, name: true } },
-      },
-    });
-
-    for (const appt of appts) {
-      this.emitter.emit('appointment.followup', { appointment: appt });
-
-      await this.prisma.appointment.update({
-        where: { id: appt.id },
-        data:  { reminderStatus: 'sent_followup', followupSentAt: new Date() },
-      });
+      await this.deliver(appt.id, '2h', 'appointment.reminder_2h', appt);
     }
   }
 }

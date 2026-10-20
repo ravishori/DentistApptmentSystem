@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
 import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
 import dayjs from 'dayjs';
+import { WhatsappProviderPolicy } from './whatsapp-provider.policy';
 
 @Injectable()
 export class WhatsappService {
@@ -12,9 +13,25 @@ export class WhatsappService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    @Optional() private readonly policy?: WhatsappProviderPolicy,
   ) {}
 
   // ── Core send helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Consent gate for STAFF-initiated manual sends. The recipient must be a patient of the caller's clinic and EVERY
+   * patient record sharing that phone (family numbers) must have opted in; one opt-out blocks the send.
+   * Patients of other clinics never count.
+   */
+  async assertRecipientConsented(clinicId: string, phone: string): Promise<void> {
+    const variants = [phone, phone.replace(/^\+/, '')];
+    const patients = await this.prisma.patient.findMany({
+      where: { clinicId, phone: { in: variants } },
+      select: { waOptIn: true },
+    });
+    if (!patients.length) throw new ForbiddenException('Recipient is not a registered patient of this clinic');
+    if (patients.some((p) => !p.waOptIn)) throw new ForbiddenException('Recipient has not opted in to WhatsApp messages');
+  }
 
   async sendText(clinicId: string, to: string, text: string) {
     const conv = await this.getOrCreateConversation(clinicId, to);
@@ -82,18 +99,19 @@ export class WhatsappService {
 
     try {
       const externalId = await this.dispatch(clinicId, to, payload);
-      await this.prisma.whatsappMessage.update({
+      return await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
         data:  { status: 'sent', externalId: externalId },
       });
     } catch (err) {
       this.logger.error(`Template send failed: ${(err as Error).message}`);
-      await this.prisma.whatsappMessage.update({
+      const failed = await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
         data:  { status: 'failed', failureReason: (err as Error).message },
       });
+      // Not persisted: lets callers tell "provider rejected (4xx)" from "outcome unknown (timeout/5xx)"
+      return Object.assign(failed, { httpStatus: (err as any)?.response?.status as number | undefined });
     }
-    return msg;
   }
 
   // ── Pre-built clinic notification senders ─────────────────────────────────
@@ -204,6 +222,8 @@ export class WhatsappService {
   async onAppointmentBooked({ appointment, clinicId }: any) {
     const { patient, dentist, clinic } = appointment;
     if (!patient.waOptIn || !patient.phone) return;
+    // ReminderFlow (Twilio) also listens to this event: exactly ONE provider confirms a booking
+    if (this.policy && !this.policy.shouldSend('360dialog')) return;
 
     await this.sendAppointmentConfirmation(clinicId, patient.phone, {
       patientName: patient.fullName,
@@ -214,48 +234,55 @@ export class WhatsappService {
     });
   }
 
-  @OnEvent('appointment.reminder_24h')
+  // suppressErrors:false → a failed delivery rejects, so the scheduler releases its claim and retries
+  @OnEvent('appointment.reminder_24h', { suppressErrors: false })
   async onReminder24h({ appointment }: any) {
     const { patient, dentist, clinic } = appointment;
     if (!patient.waOptIn || !patient.phone) return;
 
-    await this.sendReminder24h(appointment.clinicId, patient.phone, {
+    const sent = await this.sendReminder24h(appointment.clinicId, patient.phone, {
       patientName: patient.fullName,
       dentistName: dentist.fullName,
       date:        dayjs(appointment.appointmentDate).format('D MMM YYYY'),
       time:        appointment.startTime.slice(0, 5),
       clinicName:  clinic.name,
     });
+    if (sent.status === 'failed') throw new Error(sent.failureReason ?? 'WhatsApp delivery failed');
   }
 
-  @OnEvent('appointment.reminder_2h')
+  // suppressErrors:false → a failed delivery rejects, so the scheduler releases its claim and retries
+  @OnEvent('appointment.reminder_2h', { suppressErrors: false })
   async onReminder2h({ appointment }: any) {
     const { patient, clinic } = appointment;
     if (!patient.waOptIn || !patient.phone) return;
 
-    await this.sendReminder2h(appointment.clinicId, patient.phone, {
+    const sent = await this.sendReminder2h(appointment.clinicId, patient.phone, {
       patientName: patient.fullName,
       time:        appointment.startTime.slice(0, 5),
       clinicName:  clinic.name,
     });
+    if (sent.status === 'failed') throw new Error(sent.failureReason ?? 'WhatsApp delivery failed');
   }
 
-  @OnEvent('appointment.followup')
+  // suppressErrors:false → a failed delivery rejects, so the scheduler releases its claim and retries
+  @OnEvent('appointment.followup', { suppressErrors: false })
   async onFollowup({ appointment }: any) {
     const { patient, dentist, clinic } = appointment;
     if (!patient.waOptIn || !patient.phone) return;
 
-    await this.sendFollowup(appointment.clinicId, patient.phone, {
+    const sent = await this.sendFollowup(appointment.clinicId, patient.phone, {
       patientName: patient.fullName,
       dentistName: dentist.fullName,
       clinicName:  clinic.name,
     });
+    if (sent.status === 'failed') throw new Error(sent.failureReason ?? 'WhatsApp delivery failed');
   }
 
   @OnEvent('invoice.sent')
   async onInvoiceSent({ invoice, paymentLink, clinicId }: any) {
     const patient = invoice?.patient ?? invoice;
-    if (!patient?.phone) return;
+    // A business-initiated WhatsApp message (even a payment link) needs the patient's opt-in
+    if (!patient?.waOptIn || !patient?.phone) return;
 
     await this.sendInvoiceLink(invoice.clinicId ?? clinicId, patient.phone, {
       patientName:   patient.fullName,

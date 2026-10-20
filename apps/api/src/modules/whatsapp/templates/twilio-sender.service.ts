@@ -1,29 +1,35 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Twilio from 'twilio';
+import { Twilio } from 'twilio';
 import { TwilioTextMessage, TwilioTemplateMessage, ButtonsPayload, ListPayload } from './template-builder';
 
-type TwilioClient = ReturnType<typeof Twilio>;
 
 @Injectable()
 export class TwilioSenderService {
   private readonly logger = new Logger(TwilioSenderService.name);
-  private readonly client: TwilioClient;
+  private readonly twilio: Twilio | null;
   private readonly from:   string;
 
   constructor(private readonly config: ConfigService) {
-    this.client = Twilio(
-      config.get<string>('twilio.accountSid'),
-      config.get<string>('twilio.authToken'),
-    );
+    // The SDK throws at construction when credentials are absent; keep the app bootable
+    // (e.g. local dev without WhatsApp) and fail only when a message is actually sent.
+    const sid   = config.get<string>('twilio.accountSid');
+    const token = config.get<string>('twilio.authToken');
+    this.twilio = sid && token ? new Twilio(sid, token) : null;
+    if (!this.twilio) this.logger.warn('Twilio credentials not configured — WhatsApp sending is disabled');
     this.from = `whatsapp:${config.get<string>('twilio.whatsappNumber')}`;
+  }
+
+  private client(): Twilio {
+    if (!this.twilio) throw new ServiceUnavailableException('WhatsApp sending is not configured');
+    return this.twilio;
   }
 
   // ── Plain text ────────────────────────────────────────────────────────────
 
   async sendText(to: string, body: string): Promise<string> {
     try {
-      const msg = await this.client.messages.create({
+      const msg = await this.client().messages.create({
         from: this.from,
         to:   `whatsapp:${to}`,
         body,
@@ -40,7 +46,7 @@ export class TwilioSenderService {
 
   async sendTemplate(payload: TwilioTemplateMessage): Promise<string> {
     try {
-      const msg = await this.client.messages.create({
+      const msg = await this.client().messages.create({
         from:             payload.from,
         to:               payload.to,
         contentSid:       payload.contentSid,

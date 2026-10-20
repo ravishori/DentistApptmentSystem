@@ -1,6 +1,6 @@
 import {
   IsUUID, IsDateString, IsString, IsEnum, IsOptional,
-  IsNumber, Min, Max, Matches,
+  IsNumber, Min, Max, Matches, MaxLength, IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { AppointmentType } from '@prisma/client';
@@ -29,6 +29,7 @@ export class BookAppointmentDto {
 
   @ApiPropertyOptional({ example: 'Toothache upper right molar' })
   @IsString()
+  @MaxLength(500)
   @IsOptional()
   chiefComplaint?: string;
 
@@ -39,7 +40,7 @@ export class BookAppointmentDto {
   estimatedCost?: number;
 
   @ApiPropertyOptional({ enum: ['web', 'whatsapp', 'phone', 'walkin'], default: 'web' })
-  @IsString()
+  @IsIn(['web', 'whatsapp', 'phone', 'walkin'])
   @IsOptional()
   bookedVia?: string;
 }

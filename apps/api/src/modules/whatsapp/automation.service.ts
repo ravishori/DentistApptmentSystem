@@ -4,6 +4,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsappService } from './whatsapp.service';
 import dayjs from 'dayjs';
 
+/**
+ * @deprecated NOT REGISTERED in any module and intentionally left that way.
+ * Every handler here is already implemented by WhatsappService (@OnEvent listeners for booked,
+ * reminder_24h/2h and followup) and by the ReminderFlow/FollowupFlow crons. Registering this class would
+ * send each WhatsApp message twice, and its 24h follow-up uses an in-memory setTimeout that is lost on restart.
+ * Kept only so it compiles; remove it once the owner approves deleting the file.
+ */
 @Injectable()
 export class AutomationService {
   private readonly logger = new Logger(AutomationService.name);
