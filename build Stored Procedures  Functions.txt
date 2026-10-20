@@ -1,0 +1,22 @@
+build Stored Procedures / Functions 
+
+
+1. Complex Transactions
+
+Book appointment + update slot + create invoice + send log
+
+2. Heavy Data Processing
+
+– Reports (monthly revenue, retention)
+– Aggregations across large tables
+
+
+3. Bulk Operations
+
+– Campaign targeting
+– Reminder scheduling
+
+4. Performance Optimization
+
+– High-frequency queries
+– Reduce network round trips

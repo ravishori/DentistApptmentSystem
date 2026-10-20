@@ -1,0 +1,127 @@
+Node.js is not installed on this machine. Here is the complete step-by-step guide to get everything running from scratch:
+
+---
+
+## Prerequisites
+
+**PostgreSQL** ✅ running on port 5432  
+**Redis** ✅ running on port 6379  
+**Node.js** ❌ needs installing
+
+---
+
+## Step 1 — Install Node.js
+
+Download and install **Node.js v20 LTS** from:  
+👉 https://nodejs.org/en/download (choose "Windows Installer (.msi) — LTS")
+
+After installing, close and reopen your terminal, then verify:
+```
+node --version    # should print v20.x.x
+npm --version     # should print 10.x.x
+```
+
+---
+
+## Step 2 — Copy the environment file
+
+Open a terminal in `D:\ravishori\DentistAptSystem` and run:
+```
+copy .env.example .env
+```
+
+The `.env` already has the correct local values — the PostgreSQL and Redis passwords you set, ports 5432 and 6379. You only need to fill in the optional keys (Razorpay, Twilio, AWS) when you need those features.
+
+---
+
+## Step 3 — Install dependencies
+
+From the project root `D:\ravishori\DentistAptSystem`:
+```
+npm install
+```
+
+This installs everything for both `apps/api` and `apps/web` in one shot via npm workspaces.
+
+---
+
+## Step 4 — Generate Prisma client
+
+```
+cd apps/api
+npm run db:generate
+cd ../..
+```
+
+This reads `database/schema.prisma` and generates the TypeScript client with all the new models (Chair, DoctorAvailability, TreatmentPackage, InsuranceClaim, etc.).
+
+---
+
+## Step 5 — Run the database migrations
+
+The SQL migrations were already applied to `dentalease_db` in the previous session. But if you're on a fresh database, run:
+```
+psql -U postgres -d dentalease_db -f database/schema.sql
+psql -U postgres -d dentalease_db -f database/billing_upgrade.sql
+psql -U postgres -d dentalease_db -f database/multi_doctor.sql
+```
+
+Seed initial data (clinic, admin user, procedures):
+```
+psql -U postgres -d dentalease_db -f database/seeds.sql
+```
+
+---
+
+## Step 6 — Start the app
+
+**Option A — Start both API + Web together (recommended):**
+
+npm run dev
+
+Turborepo starts both services in parallel.
+
+**Option B — Start separately in two terminals:**
+
+Terminal 1 (API on port 3001):
+
+cd apps/api
+npm run dev
+
+
+Terminal 2 (Web on port 3000):
+
+cd apps/web
+npm run dev
+
+
+---
+
+## Step 7 — Open in browser
+
+| App | URL |
+|-----|-----|
+| Web dashboard | http://localhost:3000 |
+| API docs (Swagger) | http://localhost:3001/api/docs |
+| Prisma Studio (DB browser) | `npm run db:studio` from `apps/api` → http://localhost:5555 |
+
+Login with the superadmin credentials set in `.env`:
+```
+Email:    admin@dentalease.in
+Password: change_me_in_prod
+```
+
+---
+
+## Quick reference — common commands
+
+All run from `D:\ravishori\DentistAptSystem`:
+
+| Task | Command |
+|------|---------|
+| Start everything | `npm run dev` |
+| Regenerate Prisma client | `cd apps/api && npm run db:generate` |
+| Open DB browser | `cd apps/api && npm run db:studio` |
+| Build for production | `npm run build` |
+| Run API only | `cd apps/api && npm run dev` |
+| Run web only | `cd apps/web && npm run dev` |

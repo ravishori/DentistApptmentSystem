@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+
+# build output / caches
+dist/
+.next/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# environment & secrets (keep .env.example)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# logs, temp, local data
+*.log
+npm-debug.log*
+*.dump
+*.bak
+*.sqlite
+.DS_Store
+Thumbs.db
+~$*
+
+# local business documents (not part of the codebase)
+*.docx
+BRD*.txt
