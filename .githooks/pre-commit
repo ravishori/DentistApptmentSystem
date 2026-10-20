@@ -1,0 +1,3 @@
+#!/bin/sh
+# Opt-in: git config core.hooksPath .githooks
+node scripts/check-feature-status.mjs --staged
