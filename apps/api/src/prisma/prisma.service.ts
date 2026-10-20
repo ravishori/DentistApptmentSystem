@@ -3,6 +3,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@prisma/client';
+import { logEvent } from '../common/observability/structured-logger';
 
 @Injectable()
 export class PrismaService
@@ -14,11 +15,14 @@ export class PrismaService
   constructor(private readonly config: ConfigService) {
     super({
       datasources: { db: { url: config.get('database.url') } },
-      log:
-        config.get('app.nodeEnv') === 'development'
-          ? ['query', 'warn', 'error']
-          : ['warn', 'error'],
+      // Prisma's own stdout logging is replaced by events routed through the structured logger. Query text/params are
+      // never logged (parameters can contain patient data); set PRISMA_LOG_QUERIES=1 for query DURATIONS only.
+      log: [{ emit: 'event', level: 'warn' }, { emit: 'event', level: 'error' }, ...(process.env.PRISMA_LOG_QUERIES === '1' ? [{ emit: 'event' as const, level: 'query' as const }] : [])],
     });
+    const on = this.$on.bind(this) as (ev: string, cb: (e: any) => void) => void;
+    on('warn', (e) => logEvent('warn', 'db.prisma_warning', { target: e.target }));
+    on('error', (e) => logEvent('error', 'db.prisma_error', { target: e.target }));
+    on('query', (e) => { if (e.duration > Number(process.env.SLOW_QUERY_MS ?? 500)) logEvent('warn', 'db.slow_query', { durationMs: e.duration, target: e.target }); });
 
     // ── Soft-delete middleware ─────────────────────────────────────────────
     // Intercepts all findFirst/findMany to filter out soft-deleted records.

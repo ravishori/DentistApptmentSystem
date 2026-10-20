@@ -1,3 +1,5 @@
+import { ObservabilityModule } from './common/observability/observability.module';
+import { RequestContextMiddleware } from './common/observability/request-context';
 import { Module, MiddlewareConsumer, RequestMethod } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -16,7 +18,6 @@ import { PermissionsGuard } from './common/guards/permissions.guard';
 import { TenantIsolationGuard } from './common/guards/tenant-isolation.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
 import { EncryptionModule } from './common/encryption/encryption.module';
@@ -84,6 +85,7 @@ import { SanitizationMiddleware } from './common/middleware/sanitization.middlew
     DocumentsModule,
     ClinicManagementModule,
     AnalyticsModule,
+    ObservabilityModule,
   ],
 
   providers: [
@@ -99,14 +101,16 @@ import { SanitizationMiddleware } from './common/middleware/sanitization.middlew
     // Global exception filter
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
 
-    // Global interceptors (response shape + request logging + audit trail)
+    // Global interceptors (response shape + audit trail; request logging/metrics live in RequestContextMiddleware)
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
-    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
+    // First: correlation id, access log + metrics for every request (also guard rejections, throttling, 404s)
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+
     // Sanitize all incoming request bodies (SQL injection, XSS, NoSQL injection)
     consumer
       .apply(SanitizationMiddleware)

@@ -1,106 +1,94 @@
-import {
-  ExceptionFilter, Catch, ArgumentsHost,
-  HttpException, HttpStatus, Logger, Inject, Optional,
-} from '@nestjs/common';
-import { Request, Response } from 'express';
-import { Prisma } from '@prisma/client';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpStatus, Inject, Optional } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { ErrorEmailService } from '../logger/error-email.service';
-import { winstonLogger } from '../logger/winston.logger';
-import { AppRequest } from '../types/request.types';
+import { MetricsService } from '../observability/metrics.service';
+import { classifyException, ClassifiedError, ErrorCode } from '../observability/error-classifier';
+import { logEvent } from '../observability/structured-logger';
+import { getRequestContext, getRequestId } from '../observability/context-store';
+import { sanitizeStack, summariseError, templatePath } from '../observability/redaction';
 
-const SERVER_ERRORS = new Set([500, 502, 503, 504]);
-// Email these client errors too — useful for debugging auth flows in dev
-const ALERT_4XX     = new Set([401, 403, 422]);
-
+/**
+ * The ONE place where a failed request is turned into (a) an HTTP response, (b) a log record, (c) metrics and (d) an
+ * administrator alert. Everything is derived from `classifyException`, so clients never see stack traces, SQL,
+ * connection details, file paths or raw provider errors.
+ *
+ * Response contract (documented in docs/OBSERVABILITY.md). Existing top-level fields are kept for compatibility
+ * (`success`, `statusCode`, `message`, `timestamp`, `path`); `error` and `requestId` are additive:
+ *   { success:false, statusCode, message, error:{ code, message, requestId, details?, retryable, retryAfterSeconds? },
+ *     requestId, timestamp, path }
+ */
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger('ExceptionFilter');
+  /** An exception object is logged once, even if several layers re-throw it. */
+  private readonly logged = new WeakSet<object>();
 
   constructor(
-    @Optional() @Inject(ErrorEmailService)
-    private readonly emailService?: ErrorEmailService,
+    @Optional() @Inject(ErrorEmailService) private readonly alerts?: ErrorEmailService,
+    @Optional() @Inject(MetricsService) private readonly metrics?: MetricsService,
   ) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const req = ctx.getRequest<AppRequest>();
-    const res = ctx.getResponse<Response>();
+    if (host.getType() !== 'http') return;               // only HTTP is handled here
+    const http = host.switchToHttp();
+    const req = http.getRequest<Request & { requestId?: string; clinicId?: string; user?: { id?: string } }>();
+    const res = http.getResponse<Response>();
 
-    let status:  number           = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message: string | string[] = 'Internal server error';
-    let code:    string | undefined;
-
-    // ── NestJS HttpException ────────────────────────────────────────────────────
-    if (exception instanceof HttpException) {
-      status  = exception.getStatus();
-      const body = exception.getResponse();
-      message = typeof body === 'object' ? (body as any).message : body;
-
-    // ── Prisma known errors ─────────────────────────────────────────────────────
-    } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      code = exception.code;
-      if (code === 'P2002') {
-        status  = HttpStatus.CONFLICT;
-        const field = (exception.meta?.target as string[])?.join(', ');
-        message = `Duplicate value for field: ${field}`;
-      } else if (code === 'P2025') {
-        status  = HttpStatus.NOT_FOUND;
-        message = 'Record not found';
-      } else {
-        status  = HttpStatus.INTERNAL_SERVER_ERROR;
-        message = 'Database error';
-        winstonLogger.error(`Prisma ${code}: ${exception.message}`, {
-          context: 'Prisma', meta: exception.meta,
-        });
-      }
-
-    // ── Unknown / unhandled ─────────────────────────────────────────────────────
-    } else {
-      winstonLogger.error('Unhandled exception', {
-        error: String(exception),
-        stack: exception instanceof Error ? exception.stack : undefined,
-        path:  req.url,
-        method: req.method,
-      });
+    let c: ClassifiedError;
+    try { c = classifyException(exception); } catch {
+      c = { status: 500, code: ErrorCode.INTERNAL_ERROR, message: 'Something went wrong on our side.', retryable: false, severity: 'error', subsystem: 'internal', alert: true, cause: { name: 'ClassificationFailure', message: '' } };
     }
+    const requestId = req.requestId ?? getRequestId() ?? 'unknown';
+    const route = templatePath(req.originalUrl ?? req.url);
 
-    // ── Always log to console with request context ───────────────────────────────
-    winstonLogger.error(
-      `${status} ${req.method} ${req.url} → ${typeof message === 'string' ? message : JSON.stringify(message)}`,
-      { context: 'HttpExceptionFilter', userId: req.user?.id, clinicId: req.clinicId, prismaCode: code },
-    );
+    try {
+      this.record(exception, c, req, route, requestId);
+    } catch { /* observability must never prevent the response */ }
 
-    // ── Email alert for 5xx (always) and selected 4xx (in dev) ──────────────────
-    const shouldEmail = SERVER_ERRORS.has(status) ||
-                        (process.env.NODE_ENV !== 'production' && ALERT_4XX.has(status));
-    if (shouldEmail && this.emailService) {
-      const err = exception instanceof Error ? exception : new Error(String(exception));
-      this.emailService.sendAlert({
-        subject:  `${status} ${req.method} ${req.path}`,
-        error:    err,
-        context:  'HttpExceptionFilter',
-        request: {
-          method:   req.method,
-          url:      req.url,
-          ip:       this.getIp(req),
-          userId:   req.user?.id,
-          clinicId: req.clinicId,
-        },
-        extra: { prismaCode: code },
-      }).catch(() => { /* swallow */ });
-    }
-
-    res.status(status).json({
-      success:    false,
-      statusCode: status,
-      message,
-      timestamp:  new Date().toISOString(),
-      path:       req.url,
+    if (res.headersSent) return;
+    if (c.retryAfterSeconds && (c.status === 429 || c.status === 503)) res.setHeader('Retry-After', String(c.retryAfterSeconds));
+    res.setHeader('X-Request-Id', requestId);
+    res.status(c.status).json({
+      success: false,
+      statusCode: c.status,
+      message: c.message,
+      error: {
+        code: c.code, message: c.message, requestId,
+        ...(c.details?.length ? { details: c.details } : {}),
+        retryable: c.retryable,
+        ...(c.retryAfterSeconds ? { retryAfterSeconds: c.retryAfterSeconds } : {}),
+      },
+      requestId,
+      timestamp: new Date().toISOString(),
+      path: (req.originalUrl ?? req.url ?? '').split('?')[0],
     });
   }
 
-  private getIp(req: Request): string {
-    const fwd = req.headers['x-forwarded-for'];
-    return typeof fwd === 'string' ? fwd.split(',')[0].trim() : (req.socket?.remoteAddress ?? 'unknown');
+  private record(exception: unknown, c: ClassifiedError, req: Request & { clinicId?: string; user?: { id?: string } }, route: string, requestId: string) {
+    this.metrics?.inc('errors_total', { code: c.code, status_class: `${Math.floor(c.status / 100)}xx` });
+
+    const already = typeof exception === 'object' && exception !== null && this.logged.has(exception);
+    if (!already) {
+      if (typeof exception === 'object' && exception !== null) this.logged.add(exception);
+      const server = c.status >= 500;
+      const isPrisma = /^PrismaClient/.test(c.cause.name);
+      logEvent(server ? 'error' : c.status === 401 || c.status === 403 || c.status === 429 ? 'warn' : 'info', 'http.error', {
+        status: c.status, errorCode: c.code, subsystem: c.subsystem, method: req.method, route,
+        userId: req.user?.id, clinicId: req.clinicId ?? getRequestContext()?.clinicId,
+        // 5xx only: what was actually thrown. Prisma messages embed query arguments (patient data), so only name+code are kept.
+        ...(server ? { cause: isPrisma ? { name: c.cause.name, code: c.cause.code } : c.cause, stack: isPrisma ? undefined : sanitizeStack(exception instanceof Error ? exception.stack : undefined) } : {}),
+      });
+    }
+
+    if (c.alert && this.alerts) {
+      // Summary deliberately omits the exception message (it may contain data); name + code are enough to find the log line.
+      const s = summariseError(exception);
+      this.alerts.report({
+        severity: c.severity === 'critical' ? 'critical' : 'error', code: c.code, subsystem: c.subsystem,
+        summary: `${req.method} ${route} -> ${c.status} ${c.code} (${s.name}${s.code ? ` ${s.code}` : ''})`,
+        route, requestId, clinicId: req.clinicId, discriminator: s.name,
+      });
+    }
   }
 }
+
+export { HttpStatus };

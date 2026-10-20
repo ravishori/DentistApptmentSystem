@@ -11,6 +11,12 @@ export class CacheService {
 
   // ── Core primitives ────────────────────────────────────────────────────────
 
+  /** Liveness probe for readiness checks; throws if Redis does not answer. */
+  async ping(): Promise<void> {
+    const r = await this.redis.ping();
+    if (r !== 'PONG') throw new Error('unexpected PING reply');
+  }
+
   async get<T>(key: string): Promise<T | null> {
     try {
       const raw = await this.redis.get(key);

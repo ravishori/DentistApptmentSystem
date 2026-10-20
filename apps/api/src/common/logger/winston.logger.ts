@@ -1,51 +1,27 @@
-// Simple console-based logger (drop-in replacement for Winston)
-// Compatible interface: winstonLogger.info/error/warn/debug/verbose
+// Compatibility facade. The old "winston" logger printed free-form console text; it now emits the same structured JSON
+// records as the rest of the application (see common/observability/structured-logger.ts). Existing call sites keep
+// working unchanged; new code should call logEvent(level, 'domain.event', { ...context }) directly.
+import { logEvent } from '../observability/structured-logger';
+import { sanitizeStack, sanitizeText } from '../observability/redaction';
 
-const fmt = (level: string, message: any, meta?: any) => {
-  const ts  = new Date().toISOString().slice(11, 23);
-  const ctx = meta?.context ? ` [${meta.context}]` : '';
-  const extra = meta
-    ? Object.entries(meta)
-        .filter(([k]) => k !== 'context')
-        .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
-        .join(' ')
-    : '';
-  const stack = meta?.stack ? `\n${meta.stack}` : '';
-  return `${ts}${ctx} ${level}: ${message}${extra ? ' ' + extra : ''}${stack}`;
+const toFields = (message: unknown, meta?: Record<string, unknown>) => {
+  const { context, stack, ...rest } = (meta ?? {}) as Record<string, unknown>;
+  return { context, message: sanitizeText(message, 1000), ...(typeof stack === 'string' ? { stack: sanitizeStack(stack) } : {}), ...rest };
 };
 
 export const winstonLogger = {
-  info:    (msg: any, meta?: any) => console.log(fmt('INFO',    msg, meta)),
-  error:   (msg: any, meta?: any) => console.error(fmt('ERROR', msg, meta)),
-  warn:    (msg: any, meta?: any) => console.warn(fmt('WARN',   msg, meta)),
-  debug:   (msg: any, meta?: any) => console.debug(fmt('DEBUG', msg, meta)),
-  verbose: (msg: any, meta?: any) => console.log(fmt('VERBOSE', msg, meta)),
+  info:    (msg: unknown, meta?: Record<string, unknown>) => logEvent('info',  'app.log', toFields(msg, meta)),
+  error:   (msg: unknown, meta?: Record<string, unknown>) => logEvent('error', 'app.log', toFields(msg, meta)),
+  warn:    (msg: unknown, meta?: Record<string, unknown>) => logEvent('warn',  'app.log', toFields(msg, meta)),
+  debug:   (msg: unknown, meta?: Record<string, unknown>) => logEvent('debug', 'app.log', toFields(msg, meta)),
+  verbose: (msg: unknown, meta?: Record<string, unknown>) => logEvent('debug', 'app.log', toFields(msg, meta)),
 };
 
 export class AppLogger {
-  private readonly context?: string;
-
-  constructor(context?: string) {
-    this.context = context;
-  }
-
-  log(message: any, context?: string) {
-    console.log(fmt('INFO', message, { context: context ?? this.context }));
-  }
-
-  error(message: any, trace?: string, context?: string) {
-    console.error(fmt('ERROR', message, { stack: trace, context: context ?? this.context }));
-  }
-
-  warn(message: any, context?: string) {
-    console.warn(fmt('WARN', message, { context: context ?? this.context }));
-  }
-
-  debug(message: any, context?: string) {
-    console.debug(fmt('DEBUG', message, { context: context ?? this.context }));
-  }
-
-  verbose(message: any, context?: string) {
-    console.log(fmt('VERBOSE', message, { context: context ?? this.context }));
-  }
+  constructor(private readonly context?: string) {}
+  log(message: unknown, context?: string)   { winstonLogger.info(message,  { context: context ?? this.context }); }
+  error(message: unknown, trace?: string, context?: string) { winstonLogger.error(message, { stack: trace, context: context ?? this.context }); }
+  warn(message: unknown, context?: string)  { winstonLogger.warn(message,  { context: context ?? this.context }); }
+  debug(message: unknown, context?: string) { winstonLogger.debug(message, { context: context ?? this.context }); }
+  verbose(message: unknown, context?: string) { winstonLogger.verbose(message, { context: context ?? this.context }); }
 }

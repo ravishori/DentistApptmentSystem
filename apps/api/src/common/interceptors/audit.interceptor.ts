@@ -81,6 +81,7 @@ export class AuditInterceptor implements NestInterceptor {
           statusCode:   error ? (error.status ?? 500) : 200,
           errorMessage: error?.message ?? null,
           durationMs,
+          requestId: (req as any).requestId ?? null,
         },
       },
     });

@@ -7,6 +7,7 @@ import { NextFunction, Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../cache/cache.service';
 import { AppRequest } from '../types/request.types';
+import { setContextActor } from '../observability/context-store';
 
 /**
  * TenantMiddleware — resolves and validates the clinic context on every request.
@@ -86,6 +87,7 @@ export class TenantMiddleware implements NestMiddleware {
       clinicName: clinic.name,
     };
 
+    setContextActor(payload.sub, clinic.id);
     next();
   }
 }
