@@ -5,8 +5,9 @@ import { Providers } from './providers';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from '@/components/providers/error-boundary';
 import { GlobalErrorSetup } from '@/components/providers/global-error-setup';
+import { THEME_INIT_SCRIPT } from '@/components/layout/theme-toggle';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'DentalEase — Clinic Management Platform',
@@ -16,8 +17,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={`${inter.className} bg-surface text-slate-900`}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         {/* Installs window.onerror + unhandledrejection listeners */}
         <GlobalErrorSetup />
 
@@ -26,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ErrorBoundary>
             {children}
           </ErrorBoundary>
-          <Toaster position="top-right" richColors />
+          <Toaster position="top-right" richColors closeButton theme="system" />
         </Providers>
       </body>
     </html>

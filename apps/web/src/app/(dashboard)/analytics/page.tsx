@@ -16,6 +16,9 @@ import {
   UserX, Crown, ChevronRight,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
+import { RevenueTrendCard, useRevenueAccess } from '@/components/analytics/RevenueTrendCard';
+import { RevenueAccessManager } from '@/components/analytics/RevenueAccessManager';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -159,11 +162,11 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
   return (
     <div className="space-y-6">
       {/* KPI row */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
-        <KpiCard loading={isLoading} label="Month Revenue" icon={DollarSign} color="bg-emerald-500"
+      <div className={`grid grid-cols-2 gap-3 md:gap-4 ${stats?.financialsRestricted ? 'xl:grid-cols-2' : 'xl:grid-cols-4'}`}>
+        {!stats?.financialsRestricted && <KpiCard loading={isLoading} label="Month Revenue" icon={DollarSign} color="bg-emerald-500"
           value={formatCurrency(stats?.thisMonth?.revenue ?? 0)}
           change={stats?.thisMonth?.revenueMoM}
-        />
+        />}
         <KpiCard loading={isLoading} label="Appointments" icon={Calendar} color="bg-blue-500"
           value={String(stats?.thisMonth?.appointments ?? 0)}
           subValue={`Today: ${stats?.today?.appointments ?? 0}`}
@@ -173,34 +176,13 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
           value={`${noShowRate}%`}
           subValue="Last 90 days"
         />
-        <KpiCard loading={isLoading} label="Outstanding" icon={Activity} color="bg-orange-500"
+        {!stats?.financialsRestricted && <KpiCard loading={isLoading} label="Outstanding" icon={Activity} color="bg-orange-500"
           value={formatCurrency(stats?.totals?.outstandingAmount ?? 0)}
-        />
+        />}
       </div>
 
-      {/* Revenue trend */}
-      <Card>
-        <CardContent className="p-5">
-          <SectionHeader title="Revenue Trend" subtitle={`Last ${trendCount} months`} />
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={trends ?? []} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor={CHART_COLORS.blue} stopOpacity={0.18} />
-                  <stop offset="95%" stopColor={CHART_COLORS.blue} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="period" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false}
-                tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} width={48} />
-              <Tooltip content={<ChartTip currency />} />
-              <Area type="monotone" dataKey="revenue" name="Revenue"
-                stroke={CHART_COLORS.blue} strokeWidth={2} fill="url(#revGrad)" dot={false} activeDot={{ r: 5 }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {/* Revenue trend — private; renders only for clinic owners / authorised users */}
+      <RevenueTrendCard mode="reports" />
 
       {/* Appointments + Conversion funnel */}
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
@@ -257,7 +239,7 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
         <CardContent className="p-5">
           <SectionHeader title="Dentist Performance" subtitle="Last 3 months" />
           {(!dentists || dentists.length === 0) ? (
-            <p className="text-sm text-slate-400 text-center py-8">No data yet</p>
+            <EmptyState title="No data yet" className="py-8" />
           ) : (
             <div className="space-y-4">
               {dentists.map((d: any) => (
@@ -292,6 +274,27 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
 // ── REVENUE TAB ────────────────────────────────────────────────────────────────
 
 function RevenueTab() {
+  const { data: access, isLoading } = useRevenueAccess();
+  if (isLoading) return <Skeleton className="h-64" />;
+  if (!access?.canView) return <FinancialsRestricted what="Revenue analytics" />;
+  return <RevenueTabContent canManage={access.canManage} />;
+}
+
+/** Shown instead of money data to staff without revenue access (the API refuses the data as well). */
+function FinancialsRestricted({ what }: { what: string }) {
+  return (
+    <Card>
+      <CardContent className="p-2">
+        <EmptyState
+          title={`${what} are private`}
+          description="Only the clinic owner and staff the owner has authorised can see financial data. Ask your clinic owner for access."
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function RevenueTabContent({ canManage }: { canManage: boolean }) {
   const [months, setMonths] = useState(12);
 
   const { data: procedures } = useQuery({
@@ -316,6 +319,7 @@ function RevenueTab() {
 
   return (
     <div className="space-y-6">
+      {canManage && <RevenueAccessManager />}
       <div className="flex items-center justify-between">
         <PeriodPicker value={months} onChange={setMonths} />
         <button onClick={handleExportCsv}
@@ -343,7 +347,7 @@ function RevenueTab() {
         <CardContent className="p-5">
           <SectionHeader title="Revenue per Procedure" subtitle={`Last ${months} months`} />
           {(!procedures || procedures.length === 0) ? (
-            <p className="text-sm text-slate-400 text-center py-8">No completed appointments with invoices yet</p>
+            <EmptyState title="No completed appointments with invoices yet" className="py-8" />
           ) : (
             <div className="space-y-3">
               {procedures.map((p: any, i: number) => {
@@ -440,6 +444,13 @@ function RevenueTab() {
 // ── PATIENTS TAB ───────────────────────────────────────────────────────────────
 
 function PatientsTab() {
+  const { data: access, isLoading } = useRevenueAccess();
+  if (isLoading) return <Skeleton className="h-64" />;
+  if (!access?.canView) return <FinancialsRestricted what="Patient lifetime-value analytics" />;
+  return <PatientsTabContent />;
+}
+
+function PatientsTabContent() {
   const { data: ltv } = useQuery({
     queryKey: ['analytics-ltv'],
     queryFn:  analyticsApi.patientLtv,
@@ -565,7 +576,7 @@ function PatientsTab() {
           <CardContent className="p-5">
             <SectionHeader title="No-Shows by Doctor" />
             {(!noShow?.byDentist || noShow.byDentist.length === 0) ? (
-              <p className="text-sm text-slate-400 text-center py-8">No data yet</p>
+              <EmptyState title="No data yet" className="py-8" />
             ) : (
               <div className="space-y-3 mt-1">
                 {noShow.byDentist.map((d: any) => (
@@ -593,6 +604,8 @@ function PatientsTab() {
 
 function InsightsTab() {
   const [inactiveDays, setInactiveDays] = useState(90);
+  const { data: access } = useRevenueAccess();
+  const canSeeMoney = !!access?.canView;
 
   const { data: inactive, isLoading: inactiveLoading } = useQuery({
     queryKey: ['analytics-inactive', inactiveDays],
@@ -601,6 +614,8 @@ function InsightsTab() {
   const { data: highValue, isLoading: hvLoading } = useQuery({
     queryKey: ['analytics-highvalue'],
     queryFn:  analyticsApi.highValuePatients,
+    enabled:  canSeeMoney,        // the endpoint is 403 for unauthorised staff
+    retry:    false,
   });
 
   const riskBadge = (level: string) => ({
@@ -624,8 +639,8 @@ function InsightsTab() {
         {[
           { label: 'Inactive Patients', value: inactive?.length ?? 0, icon: UserX,  color: 'text-red-600 bg-red-50',     border: 'border-red-100' },
           { label: 'High-Risk (>365d)', value: inactive?.filter((p: any) => p.riskLevel === 'high').length ?? 0, icon: AlertTriangle, color: 'text-orange-600 bg-orange-50', border: 'border-orange-100' },
-          { label: 'Platinum Patients', value: highValue?.filter((p: any) => p.tier === 'platinum').length ?? 0, icon: Crown, color: 'text-purple-600 bg-purple-50', border: 'border-purple-100' },
-          { label: 'Gold Patients',     value: highValue?.filter((p: any) => p.tier === 'gold').length    ?? 0, icon: Star,  color: 'text-amber-600 bg-amber-50',   border: 'border-amber-100' },
+          ...(canSeeMoney ? [{ label: 'Platinum Patients', value: highValue?.filter((p: any) => p.tier === 'platinum').length ?? 0, icon: Crown, color: 'text-purple-600 bg-purple-50', border: 'border-purple-100' }] : []),
+          ...(canSeeMoney ? [{ label: 'Gold Patients',     value: highValue?.filter((p: any) => p.tier === 'gold').length    ?? 0, icon: Star,  color: 'text-amber-600 bg-amber-50',   border: 'border-amber-100' }] : []),
         ].map(item => (
           <div key={item.label} className={`rounded-2xl border ${item.border} p-4 flex items-center gap-3`}>
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.color}`}>
@@ -658,13 +673,13 @@ function InsightsTab() {
           {inactiveLoading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
           ) : !inactive?.length ? (
-            <p className="text-sm text-slate-400 text-center py-8">No inactive patients found — great retention!</p>
+            <EmptyState title="No inactive patients found — great retention!" className="py-8" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    {['Patient', 'Last Visit', 'Days Inactive', 'Total Visits', 'LTV', 'Risk'].map(h => (
+                    {['Patient', 'Last Visit', 'Days Inactive', 'Total Visits', ...(canSeeMoney ? ['LTV'] : []), 'Risk'].map(h => (
                       <th key={h} className="text-left text-xs font-semibold text-slate-400 pb-2 pr-4 last:pr-0">{h}</th>
                     ))}
                   </tr>
@@ -690,7 +705,7 @@ function InsightsTab() {
                         {p.daysInactive != null ? `${p.daysInactive}d` : '—'}
                       </td>
                       <td className="py-2.5 pr-4 text-slate-600 text-xs">{p.totalVisits}</td>
-                      <td className="py-2.5 pr-4 text-slate-700 text-xs font-semibold">{formatCurrency(p.ltv)}</td>
+                      {canSeeMoney && <td className="py-2.5 pr-4 text-slate-700 text-xs font-semibold">{formatCurrency(p.ltv)}</td>}
                       <td className="py-2.5">
                         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${riskBadge(p.riskLevel)}`}>
                           {p.riskLevel}
@@ -705,8 +720,8 @@ function InsightsTab() {
         </CardContent>
       </Card>
 
-      {/* High-value patients */}
-      <Card>
+      {/* High-value patients — ranked by lifetime spend, so financial: owners / authorised users only */}
+      {canSeeMoney && <Card>
         <CardContent className="p-5">
           <SectionHeader
             title="High-Value Patients"
@@ -715,7 +730,7 @@ function InsightsTab() {
           {hvLoading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
           ) : !highValue?.length ? (
-            <p className="text-sm text-slate-400 text-center py-8">No billing data yet</p>
+            <EmptyState title="No billing data yet" className="py-8" />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -766,7 +781,7 @@ function InsightsTab() {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card>}
     </div>
   );
 }

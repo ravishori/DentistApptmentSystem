@@ -10,6 +10,7 @@ import { authApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Alert } from '@/components/ui/alert';
 
 const schema = z.object({
   email:    z.string().email('Enter a valid email'),
@@ -101,7 +102,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right panel — form */}
-      <div className="flex-1 flex items-center justify-center p-6 bg-white">
+      <main id="main-content" className="flex flex-1 items-center justify-center bg-background p-6">
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3">
@@ -117,38 +118,35 @@ export default function LoginPage() {
           </div>
 
           {serverError && (
-            <div className="border border-red-300 bg-red-50 rounded-lg p-3 text-sm">
-              <div className="font-semibold text-red-800">
-                {serverError.status ? `Error ${serverError.status}` : 'Connection error'}
-              </div>
-              <div className="text-red-700 mt-1">{serverError.message}</div>
+            <Alert variant="destructive" title={serverError.status ? `Error ${serverError.status}` : 'Connection error'}>
+              {serverError.message}
               {process.env.NODE_ENV === 'development' && serverError.detail && (
                 <details className="mt-2">
-                  <summary className="text-xs text-red-600 cursor-pointer">Show response</summary>
-                  <pre className="mt-1 text-[11px] bg-red-100 p-2 rounded overflow-auto max-h-40">
+                  <summary className="cursor-pointer text-xs">Show response</summary>
+                  <pre className="mt-1 max-h-40 overflow-auto rounded bg-muted p-2 text-[11px]">
                     {serverError.detail}
                   </pre>
                 </details>
               )}
-            </div>
+            </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div>
               <label className="label">Email address</label>
               <Input
                 {...register('email')}
                 type="email"
                 placeholder="doctor@clinic.com"
-                className={errors.email ? 'border-red-400 focus:border-red-400' : ''}
+                error={!!errors.email}
               />
-              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+              {errors.email && <p role="alert" className="mt-1 text-xs font-medium text-destructive">{errors.email.message}</p>}
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="label mb-0">Password</label>
-                <a href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+                <a href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
                   Forgot password?
                 </a>
               </div>
@@ -156,14 +154,14 @@ export default function LoginPage() {
                 {...register('password')}
                 type={showPw ? 'text' : 'password'}
                 placeholder="••••••••"
-                className={errors.password ? 'border-red-400' : ''}
+                error={!!errors.password}
                 iconRight={
-                  <button type="button" onClick={() => setShowPw(!showPw)} className="p-0.5">
+                  <button type="button" onClick={() => setShowPw(!showPw)} className="rounded p-0.5" aria-label={showPw ? 'Hide password' : 'Show password'} aria-pressed={showPw}>
                     {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 }
               />
-              {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+              {errors.password && <p role="alert" className="mt-1 text-xs font-medium text-destructive">{errors.password.message}</p>}
             </div>
 
             <Button type="submit" className="w-full h-11 text-base" loading={loading}>
@@ -176,7 +174,7 @@ export default function LoginPage() {
               <div className="w-full border-t border-slate-200" />
             </div>
             <div className="relative flex justify-center">
-              <span className="bg-white px-3 text-xs text-slate-400">New to DentalEase?</span>
+              <span className="bg-background px-3 text-xs text-muted-foreground">New to DentalEase?</span>
             </div>
           </div>
 
@@ -184,7 +182,7 @@ export default function LoginPage() {
             <a href="/register">Create clinic account — it&apos;s free</a>
           </Button>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

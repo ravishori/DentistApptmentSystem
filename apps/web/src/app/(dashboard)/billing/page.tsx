@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDate, formatCurrency } from '@/lib/utils';
+import { ModalBehavior } from '@/components/ui/modal-behavior';
 
 // ── Create Invoice Modal ──────────────────────────────────────────────────────
 function CreateInvoiceModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
@@ -67,14 +68,14 @@ function CreateInvoiceModal({ onClose, onSuccess }: { onClose: () => void; onSuc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <div role="dialog" aria-modal="true" aria-label="New Invoice" className="fixed inset-0 z-50 flex items-center justify-center p-4"><ModalBehavior onClose={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
       <Card className="relative w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">New Invoice</CardTitle>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-              <X className="w-4 h-4" />
+            <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-ring rounded">
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </CardHeader>
@@ -167,13 +168,13 @@ function InvoiceDrawer({ invoiceId, onClose }: { invoiceId: string; onClose: () 
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+    <div role="dialog" aria-modal="true" aria-label="Invoice Details" className="fixed inset-0 z-50 flex justify-end"><ModalBehavior onClose={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
       <div className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <h2 className="font-semibold text-slate-900">Invoice Details</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100">
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring rounded">
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -348,10 +349,13 @@ export default function BillingPage() {
         {/* Invoices tab */}
         {activeTab === 'invoices' && <>
         {/* Stats strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`grid grid-cols-2 gap-3 ${stats?.financialsRestricted ? 'sm:grid-cols-2' : 'sm:grid-cols-4'}`}>
           {[
-            { label: 'This Month', value: formatCurrency(stats?.thisMonth ?? 0), icon: DollarSign, color: 'text-emerald-600 bg-emerald-50' },
-            { label: 'Outstanding', value: formatCurrency(stats?.outstanding ?? 0), icon: Clock, color: 'text-orange-600 bg-orange-50' },
+            // Money KPIs are removed by the API for unauthorised staff (financialsRestricted) — hide, never show ₹0
+            ...(stats?.financialsRestricted ? [] : [
+              { label: 'This Month', value: formatCurrency(stats?.thisMonth ?? 0), icon: DollarSign, color: 'text-emerald-600 bg-emerald-50' },
+              { label: 'Outstanding', value: formatCurrency(stats?.outstanding ?? 0), icon: Clock, color: 'text-orange-600 bg-orange-50' },
+            ]),
             { label: 'Paid Invoices', value: stats?.paidCount ?? 0, icon: CheckCircle2, color: 'text-blue-600 bg-blue-50' },
             { label: 'Pending', value: stats?.pendingCount ?? 0, icon: Receipt, color: 'text-purple-600 bg-purple-50' },
           ].map((s) => (
@@ -490,9 +494,6 @@ export default function BillingPage() {
             </div>
           )}
         </Card>
-      </div>
-
-        {/* close invoices tab conditional */}
         </>}
       </div>
 

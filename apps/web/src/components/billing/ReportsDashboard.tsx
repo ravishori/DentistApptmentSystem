@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { reportsApi } from '@/lib/api';
+import { Spinner } from '@/components/ui/spinner';
 
 // ── tiny chart helper (no external dep) ───────────────────────────────────────
 function BarChart({ data }: { data: { label: string; value: number }[] }) {
@@ -13,7 +14,7 @@ function BarChart({ data }: { data: { label: string; value: number }[] }) {
             className="w-full bg-blue-500 rounded-t-sm transition-all duration-300 hover:bg-blue-600 cursor-pointer"
             style={{ height: `${(d.value / max) * 100}%`, minHeight: '2px' }}
           />
-          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-slate-800 text-white text-xs rounded-md px-2 py-1 whitespace-nowrap z-10">
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block bg-foreground text-background text-xs rounded-md px-2 py-1 whitespace-nowrap z-10">
             {d.label}: ₹{d.value.toLocaleString('en-IN')}
           </div>
         </div>
@@ -114,7 +115,7 @@ export function ReportsDashboard() {
 
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <Spinner className="h-8 w-8 text-primary" label="Loading" />
         </div>
       )}
 

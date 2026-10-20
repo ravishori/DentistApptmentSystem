@@ -1,6 +1,7 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsApi, appointmentsApi } from '@/lib/api';
+import { RevenueTrendCard, useRevenueAccess } from '@/components/analytics/RevenueTrendCard';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, statusVariant } from '@/components/ui/badge';
@@ -86,10 +87,11 @@ export default function DashboardPage() {
     queryKey: ['appt-chart'],
     queryFn:  () => analyticsApi.appointmentChart(14),
   });
-  const { data: revenueChart } = useQuery({
-    queryKey: ['revenue-chart'],
-    queryFn:  () => analyticsApi.revenueChart(6),
-  });
+  // Revenue Trend is optional + private: hidden unless the user is authorised AND opted in (see Reports & Analytics)
+  const { data: revenueAccess } = useRevenueAccess();
+  // The API removes revenue/outstanding for unauthorised staff and flags it; hide those cards instead of showing ₹0
+  const moneyHidden = !!stats?.financialsRestricted;
+  const showRevenueTrend = !!revenueAccess?.canView && !!revenueAccess?.showOnDashboard;
   const { data: procedures } = useQuery({
     queryKey: ['top-procedures'],
     queryFn:  analyticsApi.topProcedures,
@@ -116,7 +118,7 @@ export default function DashboardPage() {
 
       <div className="page-content">
         {/* ── KPI row ──────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
+        <div className={`grid grid-cols-2 gap-3 md:gap-4 ${moneyHidden ? 'xl:grid-cols-2' : 'xl:grid-cols-4'}`}>
           {statsLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
               <Card key={i}><CardContent className="p-5"><Skeleton className="h-20" /></CardContent></Card>
@@ -130,6 +132,7 @@ export default function DashboardPage() {
                 icon={Calendar} color="bg-blue-500"
                 trend={stats?.thisMonth?.appointmentGrowth}
               />
+              {!moneyHidden && (
               <KpiCard
                 title="This Month Revenue"
                 value={formatCurrency(stats?.thisMonth?.revenue ?? 0)}
@@ -137,6 +140,7 @@ export default function DashboardPage() {
                 icon={DollarSign} color="bg-emerald-500"
                 trend={stats?.thisMonth?.revenueMoMPercent}
               />
+              )}
               <KpiCard
                 title="Total Patients"
                 value={(stats?.totals?.patients ?? 0).toLocaleString('en-IN')}
@@ -144,52 +148,25 @@ export default function DashboardPage() {
                 icon={Users} color="bg-purple-500"
                 trend={stats?.thisMonth?.patientGrowth}
               />
-              <KpiCard
-                title="Outstanding"
-                value={formatCurrency(stats?.totals?.outstandingAmount ?? 0)}
-                subtitle={`${stats?.totals?.pendingInvoices ?? 0} pending invoices`}
-                icon={AlertCircle} color="bg-orange-500"
-              />
+              {!moneyHidden && (
+                <KpiCard
+                  title="Outstanding"
+                  value={formatCurrency(stats?.totals?.outstandingAmount ?? 0)}
+                  subtitle={`${stats?.totals?.pendingInvoices ?? 0} pending invoices`}
+                  icon={AlertCircle} color="bg-orange-500"
+                />
+              )}
             </>
           )}
         </div>
 
         {/* ── Charts row ───────────────────────────────────────────────── */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          {/* Revenue trend */}
-          <Card className="xl:col-span-2">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle>Revenue Trend</CardTitle>
-                <span className="text-xs text-slate-400">Last 6 months</span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={revenueChart ?? []} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#3B82F6" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false}
-                    tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} width={48} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12 }}
-                    formatter={(v: any) => [formatCurrency(Number(v)), 'Revenue']}
-                  />
-                  <Area type="monotone" dataKey="revenue" stroke="#3B82F6" strokeWidth={2}
-                    fill="url(#revenueGrad)" dot={false} activeDot={{ r: 5 }} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          {/* Revenue trend — optional, private (renders nothing unless authorised and enabled) */}
+          <RevenueTrendCard mode="dashboard" className="xl:col-span-2" />
 
           {/* Top procedures pie */}
-          <Card>
+          <Card className={showRevenueTrend ? '' : 'xl:col-span-3'}>
             <CardHeader className="pb-2">
               <CardTitle>Top Procedures</CardTitle>
             </CardHeader>

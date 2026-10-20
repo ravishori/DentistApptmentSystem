@@ -10,7 +10,7 @@ const config: Config = {
   theme: {
     container: {
       center: true,
-      padding: '2rem',
+      padding: { DEFAULT: '1rem', md: '2rem' },
       screens: { '2xl': '1400px' },
     },
     extend: {
@@ -55,10 +55,18 @@ const config: Config = {
           DEFAULT:    'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        // Semantic status tokens (light/dark values live in globals.css)
+        success: { DEFAULT: 'hsl(var(--success))', foreground: 'hsl(var(--success-foreground))' },
+        warning: { DEFAULT: 'hsl(var(--warning))', foreground: 'hsl(var(--warning-foreground))' },
+        info:    { DEFAULT: 'hsl(var(--info))',    foreground: 'hsl(var(--info-foreground))' },
+        // Neutral scale is theme-aware: the existing slate-* utilities flip automatically in dark mode
+        slate: Object.fromEntries(
+          [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => [n, `hsl(var(--slate-${n}) / <alpha-value>)`]),
+        ),
         // Brand
         teal: { 50: '#F0FDFA', 500: '#14B8A6', 600: '#0D9488' },
-        surface: '#F8FAFC',
-        sidebar: '#0F172A',
+        surface: 'hsl(var(--surface))',
+        sidebar: 'hsl(var(--sidebar))',
       },
       borderRadius: {
         lg:  'var(--radius)',
@@ -68,7 +76,16 @@ const config: Config = {
         '2xl': '1rem',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        // Type scale: [size, line-height]
+        display: ['2rem',    { lineHeight: '2.5rem',  letterSpacing: '-0.02em', fontWeight: '700' }],
+        title:   ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em', fontWeight: '600' }],
+      },
+      boxShadow: {
+        card:    'var(--shadow-card)',
+        popover: 'var(--shadow-popover)',
       },
       keyframes: {
         'accordion-down': { from: { height: '0' }, to: { height: 'var(--radix-accordion-content-height)' } },

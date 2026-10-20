@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X, Calendar, Clock } from 'lucide-react';
+import { ModalBehavior } from '@/components/ui/modal-behavior';
 
 interface Props { onClose: () => void; defaultDate?: string; }
 
@@ -49,14 +50,14 @@ export function BookAppointmentModal({ onClose, defaultDate }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <div role="dialog" aria-modal="true" aria-label="Book Appointment" className="fixed inset-0 z-50 flex items-center justify-center p-4"><ModalBehavior onClose={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
       <Card className="relative w-full max-w-lg shadow-2xl">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Book Appointment</CardTitle>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded hover:bg-slate-100">
-              <X className="w-4 h-4" />
+            <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring rounded">
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </CardHeader>
@@ -67,7 +68,7 @@ export function BookAppointmentModal({ onClose, defaultDate }: Props) {
               <Input
                 {...register('patientId', { required: true })}
                 placeholder="Patient UUID or code"
-                className={errors.patientId ? 'border-red-400' : ''}
+                error={!!errors.patientId}
               />
             </div>
 

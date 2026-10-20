@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ModalBehavior } from '@/components/ui/modal-behavior';
 
 // ── Static data ────────────────────────────────────────────────────────────────
 const TEMPLATES = [
@@ -91,14 +92,14 @@ function BroadcastModal({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <div role="dialog" aria-modal="true" aria-label="New Broadcast Campaign" className="fixed inset-0 z-50 flex items-center justify-center p-4"><ModalBehavior onClose={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
       <Card className="relative w-full max-w-md shadow-2xl">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">New Broadcast Campaign</CardTitle>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-              <X className="w-4 h-4" />
+            <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-ring rounded">
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </CardHeader>

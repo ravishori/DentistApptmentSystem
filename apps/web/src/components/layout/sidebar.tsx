@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import type { Route } from 'next';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
@@ -11,8 +12,9 @@ import { getInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { useEffect } from 'react';
 
-const NAV = [
+const NAV: { href: Route; label: string; icon: typeof LayoutDashboard }[] = [
   { href: '/dashboard',    label: 'Dashboard',    icon: LayoutDashboard },
   { href: '/appointments', label: 'Appointments',  icon: Calendar },
   { href: '/patients',     label: 'Patients',      icon: Users },
@@ -36,18 +38,27 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   const handleLogout = () => { logout(); router.push('/login'); };
 
+  // Escape closes the mobile drawer
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   return (
     <>
       {/* Mobile overlay */}
       {open && (
         <div
           className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          aria-hidden="true"
           onClick={onClose}
         />
       )}
 
-      <aside className={cn(
-        'fixed left-0 top-0 h-screen w-[260px] bg-[#0F172A] flex flex-col z-50 transition-transform duration-200',
+      <aside id="app-sidebar" aria-label="Primary" className={cn(
+        'fixed left-0 top-0 h-screen w-[260px] bg-sidebar flex flex-col z-50 transition-transform duration-200',
         'md:translate-x-0',
         open ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
       )}>
@@ -65,13 +76,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               </div>
             </div>
           </div>
-          <Button variant="ghost" size="icon-sm" className="md:hidden text-slate-400 hover:text-white" onClick={onClose}>
-            <X className="w-4 h-4" />
+          <Button variant="ghost" size="icon-sm" className="md:hidden text-slate-400 hover:text-white" onClick={onClose} aria-label="Close navigation menu">
+            <X className="w-4 h-4" aria-hidden="true" />
           </Button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        <nav aria-label="Main" className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {NAV.map(({ href, label, icon: Icon }) => {
             const active = pathname === href || pathname.startsWith(href + '/');
             return (
@@ -79,14 +90,15 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                 key={href}
                 href={href}
                 onClick={onClose}
+                aria-current={active ? 'page' : undefined}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
                   active
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-900/30'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-slate-400 hover:bg-white/5 hover:text-white',
                 )}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
                 {label}
                 {label === 'WhatsApp' && (
                   <Badge variant="teal" className="ml-auto text-[10px] px-1.5 py-0">NEW</Badge>
@@ -111,9 +123,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             <button
               onClick={handleLogout}
               title="Sign out"
-              className="text-slate-400 hover:text-white transition-colors p-1 rounded"
+              aria-label="Sign out"
+              className="rounded p-1.5 text-slate-400 transition-colors hover:text-white"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

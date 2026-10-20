@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ehrApi, patientsApi } from '@/lib/api';
 import { DentalChart } from '@/components/dental-chart/DentalChart';
 import { DentalChart as ChartType } from '@/components/dental-chart/types';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function EhrPage() {
   const { id: patientId } = useParams<{ id: string }>();
@@ -40,7 +41,7 @@ export default function EhrPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <Spinner className="h-8 w-8 text-primary" label="Loading" />
     </div>
   );
 
@@ -50,7 +51,7 @@ export default function EhrPage() {
       <nav className="flex items-center gap-2 text-sm text-slate-500">
         <Link href="/patients" className="hover:text-slate-700">Patients</Link>
         <span>/</span>
-        <Link href={`/patients/${patientId}`} className="hover:text-slate-700">{patient?.fullName}</Link>
+        <Link href={`/patients/${patientId}/ehr`} className="hover:text-slate-700">{patient?.fullName}</Link>
         <span>/</span>
         <span className="text-slate-800 font-medium">EHR</span>
       </nav>

@@ -1,6 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { clinicMgmtApi } from '@/lib/api';
+import { Spinner } from '@/components/ui/spinner';
+import { EmptyState } from '@/components/ui/empty-state';
 
 const DAYS = [
   { value: 'monday',    label: 'Mon' },
@@ -167,9 +169,9 @@ export function AvailabilitySettings() {
             )}
 
             {loading ? (
-              <div className="flex justify-center py-8"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" /></div>
+              <div className="flex justify-center py-8"><Spinner className="h-6 w-6 text-primary" label="Loading" /></div>
             ) : rules.length === 0 ? (
-              <p className="text-sm text-slate-400 text-center py-8">No rules yet. Add one to define working hours.</p>
+              <EmptyState title="No rules yet. Add one to define working hours." className="py-8" />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {rules.map((r: any) => (

@@ -1,10 +1,11 @@
 'use client';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { PatientDocument } from './types';
+import { PatientDocument, DOC_TYPE_META } from './types';
 import { DocumentCard } from './DocumentCard';
 import { DocumentSearchPanel, SearchFilters } from './DocumentSearchPanel';
 import { documentsApi } from '@/lib/api';
 import { useDebounce } from 'use-debounce';
+import { Spinner } from '@/components/ui/spinner';
 
 interface Props {
   patientId:   string;
@@ -176,7 +177,7 @@ export function DocumentGallery({ patientId, initialDocs, onTotalChange }: Props
 
       {loading && docs.length > 0 && (
         <div className="flex justify-center py-4">
-          <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <Spinner className="h-6 w-6 text-primary" label="Loading" />
         </div>
       )}
     </div>

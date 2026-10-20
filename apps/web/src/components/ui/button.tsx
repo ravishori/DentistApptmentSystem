@@ -4,17 +4,17 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default:     'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 shadow-sm',
-        destructive: 'bg-red-600 text-white hover:bg-red-700 shadow-sm',
-        outline:     'border border-slate-300 bg-white hover:bg-slate-50 text-slate-700',
-        secondary:   'bg-slate-100 text-slate-800 hover:bg-slate-200',
-        ghost:       'hover:bg-slate-100 text-slate-600 hover:text-slate-900',
-        link:        'text-blue-600 underline-offset-4 hover:underline p-0 h-auto',
-        success:     'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm',
+        default:     'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 shadow-sm',
+        destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm',
+        outline:     'border border-input bg-card text-foreground hover:bg-accent',
+        secondary:   'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+        ghost:       'text-muted-foreground hover:bg-accent hover:text-foreground',
+        link:        'text-primary underline-offset-4 hover:underline p-0 h-auto',
+        success:     'bg-success text-success-foreground hover:bg-success/90 shadow-sm',
       },
       size: {
         default: 'h-9 px-4 py-2',
@@ -47,7 +47,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ) : (
       <>
         {loading && (
-          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg className="animate-spin h-4 w-4" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
@@ -60,6 +60,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         disabled={disabled || loading}
+        aria-busy={loading || undefined}
         {...props}
       >
         {content}

@@ -22,6 +22,7 @@ import {
 import { toast } from 'sonner';
 import { formatDate, getInitials, formatCurrency } from '@/lib/utils';
 import Link from 'next/link';
+import { ModalBehavior } from '@/components/ui/modal-behavior';
 
 // ── Add Patient Modal ─────────────────────────────────────────────────────────
 function AddPatientModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
@@ -49,14 +50,14 @@ function AddPatientModal({ onClose, onSuccess }: { onClose: () => void; onSucces
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+    <div role="dialog" aria-modal="true" aria-label="Add New Patient" className="fixed inset-0 z-50 flex items-center justify-center p-4"><ModalBehavior onClose={onClose} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
       <Card className="relative w-full max-w-lg shadow-2xl">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Add New Patient</CardTitle>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
-              <X className="w-4 h-4" />
+            <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 transition-colors focus-visible:ring-2 focus-visible:ring-ring rounded">
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </CardHeader>
@@ -129,13 +130,13 @@ function PatientDrawer({ patientId, onClose }: { patientId: string; onClose: () 
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+    <div role="dialog" aria-modal="true" aria-label="Patient Profile" className="fixed inset-0 z-50 flex justify-end"><ModalBehavior onClose={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" onClick={onClose} />
       <div className="relative w-full max-w-sm bg-white h-full shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <h2 className="font-semibold text-slate-900">Patient Profile</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100">
-            <X className="w-4 h-4" />
+          <button type="button" onClick={onClose} aria-label="Close" className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 focus-visible:ring-2 focus-visible:ring-ring rounded">
+            <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -188,11 +189,14 @@ function PatientDrawer({ patientId, onClose }: { patientId: string; onClose: () 
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid gap-2 ${patient?.financialsRestricted ? 'grid-cols-1' : 'grid-cols-3'}`}>
                   {[
                     { label: 'Visits', value: patient?._count?.appointments ?? 0 },
-                    { label: 'Invoices', value: patient?._count?.invoices ?? 0 },
-                    { label: 'Balance', value: formatCurrency(patient?.outstandingBalance ?? 0) },
+                    // Invoice count and balance are removed by the API for roles without billing access — hide, don't show 0
+                    ...(patient?.financialsRestricted ? [] : [
+                      { label: 'Invoices', value: patient?._count?.invoices ?? 0 },
+                      { label: 'Balance', value: formatCurrency(patient?.outstandingBalance ?? 0) },
+                    ]),
                   ].map((s) => (
                     <div key={s.label} className="bg-slate-50 rounded-xl p-2.5 text-center">
                       <p className="text-sm font-bold text-slate-900">{s.value}</p>
@@ -202,7 +206,7 @@ function PatientDrawer({ patientId, onClose }: { patientId: string; onClose: () 
                 </div>
 
                 <Button size="sm" className="w-full" asChild>
-                  <Link href={`/patients/${patientId}`}>
+                  <Link href={`/patients/${patientId}/ehr`}>
                     View Full Profile <ChevronRight className="w-3.5 h-3.5 ml-1" />
                   </Link>
                 </Button>

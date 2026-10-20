@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { clinicMgmtApi } from '@/lib/api';
+import { Spinner } from '@/components/ui/spinner';
 
 // ── Time grid constants ────────────────────────────────────────────────────────
 const DAY_START  = 8 * 60;  // 08:00 in minutes
@@ -130,7 +131,7 @@ export function ChairUtilization({ date: initDate }: Props) {
 
       {loading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <Spinner className="h-8 w-8 text-primary" label="Loading" />
         </div>
       ) : utilization.length === 0 ? (
         <div className="text-center py-16 text-slate-400">
@@ -225,7 +226,7 @@ export function ChairUtilization({ date: initDate }: Props) {
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="fixed z-50 bg-slate-900 text-white text-xs rounded-xl shadow-xl px-3 py-2.5 pointer-events-none"
+          className="fixed z-50 bg-foreground text-background text-xs rounded-xl shadow-xl px-3 py-2.5 pointer-events-none"
           style={{ top: tooltip.y - 80, left: tooltip.x + 12 }}
         >
           <p className="font-semibold">{tooltip.appt.patient?.fullName}</p>

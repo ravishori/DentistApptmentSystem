@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { prescriptionsApi, patientsApi } from '@/lib/api';
 import { PrescriptionBuilder } from '@/components/prescriptions/PrescriptionBuilder';
 import { PrescriptionPreview } from '@/components/prescriptions/PrescriptionPreview';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function PrescriptionsPage() {
   const { id: patientId } = useParams<{ id: string }>();
@@ -43,7 +44,7 @@ export default function PrescriptionsPage() {
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+      <Spinner className="h-8 w-8 text-primary" label="Loading" />
     </div>
   );
 
@@ -53,7 +54,7 @@ export default function PrescriptionsPage() {
       <nav className="flex items-center gap-2 text-sm text-slate-500">
         <Link href="/patients" className="hover:text-slate-700">Patients</Link>
         <span>/</span>
-        <Link href={`/patients/${patientId}`} className="hover:text-slate-700">{patient?.fullName}</Link>
+        <Link href={`/patients/${patientId}/ehr`} className="hover:text-slate-700">{patient?.fullName}</Link>
         <span>/</span>
         <Link href={`/patients/${patientId}/ehr`} className="hover:text-slate-700">EHR</Link>
         <span>/</span>

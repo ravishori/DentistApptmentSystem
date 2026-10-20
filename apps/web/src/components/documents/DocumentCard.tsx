@@ -173,7 +173,7 @@ export function DocumentCard({ doc, onDeleted, onUpdated }: Props) {
               <p className="font-medium text-slate-800 text-sm truncate">{doc.fileName}</p>
               <button onClick={() => setShowPreview(false)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
             </div>
-            <div className="overflow-auto max-h-[80vh] flex items-center justify-center bg-slate-900 p-4">
+            <div className="overflow-auto max-h-[80vh] flex items-center justify-center bg-black/90 p-4">
               {image && (
                 <img src={doc.url} alt={doc.fileName} className="max-w-full max-h-[75vh] object-contain rounded" />
               )}

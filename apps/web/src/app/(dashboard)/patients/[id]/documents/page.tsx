@@ -31,7 +31,7 @@ export default function DocumentsPage() {
       <nav className="flex items-center gap-2 text-sm text-slate-500">
         <Link href="/patients" className="hover:text-slate-700">Patients</Link>
         <span>/</span>
-        <Link href={`/patients/${patientId}`} className="hover:text-slate-700">
+        <Link href={`/patients/${patientId}/ehr`} className="hover:text-slate-700">
           {patient?.fullName ?? '…'}
         </Link>
         <span>/</span>

@@ -28,6 +28,11 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // `next dev` and `next build` both write here. Running a build while a dev server is up corrupts
+  // the shared directory (404s, missing vendor-chunks). Builds for verification can set
+  // NEXT_DIST_DIR=.next-build to stay out of the dev server's way. Default is unchanged.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+
   experimental: { typedRoutes: true },
 
   images: {

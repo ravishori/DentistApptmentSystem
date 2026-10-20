@@ -175,6 +175,29 @@ export const treatmentsApi = {
 // ─── Analytics ────────────────────────────────────────────────────────────────
 export const analyticsApi = {
   dashboard:          ()              => api.get('/analytics/dashboard').then(r => r.data.data),
+  // Dashboard chart adapters over existing endpoints (no dedicated chart endpoints exist server-side)
+  topProcedures: () =>
+    api.get('/analytics/revenue/procedures', { params: { months: 12 } })
+      .then(r => (r.data.data as { procedure: string; appointmentCount: number }[]).slice(0, 6).map(p => ({
+        name:  p.procedure.replace(/_/g, ' '),
+        count: p.appointmentCount,
+      }))),
+  /** Appointments per day for the last `days` days (client-side count of one page of up to 100). */
+  appointmentChart: async (days = 14) => {
+    const end   = new Date();
+    const start = new Date(end.getTime() - (days - 1) * 86400000);
+    const iso   = (d: Date) => d.toISOString().slice(0, 10);
+    const res   = await api.get('/appointments', {
+      params: { startDate: iso(start), endDate: iso(end), limit: 100 },
+    }).then(r => r.data.data as { items: { appointmentDate: string }[] });
+    const counts = new Map<string, number>();
+    for (let i = 0; i < days; i++) counts.set(iso(new Date(start.getTime() + i * 86400000)), 0);
+    for (const a of res.items ?? []) {
+      const k = String(a.appointmentDate).slice(0, 10);
+      if (counts.has(k)) counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    return Array.from(counts, ([date, count]) => ({ date, count }));
+  },
   revenueByProcedure: (months = 12)  => api.get('/analytics/revenue/procedures', { params: { months } }).then(r => r.data.data),
   patientLtv:         ()              => api.get('/analytics/patients/ltv').then(r => r.data.data),
   noShowAnalysis:     (months = 6)   => api.get('/analytics/appointments/no-show', { params: { months } }).then(r => r.data.data),
@@ -203,6 +226,15 @@ export const whatsappApi = {
   conversations: () => api.get('/whatsapp/conversations').then(r => r.data.data),
   sendMessage: (to: string, message: string) =>
     api.post('/whatsapp/send', { to, message }).then(r => r.data.data),
+};
+
+// ─── Revenue (private: clinic owners + explicitly authorised users) ─────────
+export const revenueApi = {
+  me:             () => api.get('/analytics/revenue/access/me').then(r => r.data.data),
+  trend:          (months = 6) => api.get('/analytics/revenue/trend', { params: { months } }).then(r => r.data.data),
+  setPreference:  (showOnDashboard: boolean) => api.put('/analytics/revenue/preference', { showOnDashboard }).then(r => r.data.data),
+  listAccess:     () => api.get('/analytics/revenue/access').then(r => r.data.data),
+  setAccess:      (userId: string, granted: boolean) => api.put(`/analytics/revenue/access/${userId}`, { granted }).then(r => r.data.data),
 };
 
 // ─── Users / Staff ────────────────────────────────────────────────────────────

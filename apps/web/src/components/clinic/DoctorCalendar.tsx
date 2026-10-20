@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
 import { clinicMgmtApi } from '@/lib/api';
+import { Spinner } from '@/components/ui/spinner';
 
 const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOUR_SLOTS = Array.from({ length: 12 }, (_, i) => `${(i + 8).toString().padStart(2, '0')}:00`); // 08-19
@@ -153,7 +154,7 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
 
       {loading && (
         <div className="flex items-center justify-center py-16">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <Spinner className="h-8 w-8 text-primary" label="Loading" />
         </div>
       )}
 
