@@ -7,6 +7,8 @@ They create and delete their own rows and are refused unless `DATABASE_URL` is a
 |---|---|
 | `revenue-and-permissions.js` | revenue access, money redaction per role, tenant isolation, consent default, appointment money redaction (102 checks) |
 | `whatsapp-appointment-routes.js` | 401/403 on send/send-template/appointment mutations, consent, cross-clinic, start-booking gate and rate limit (30 checks) |
+| `auth-and-contracts.js` | real register/login/lockout/refresh/logout and the client-contract flows (41 checks) |
+| `observability.js` (3 phases) | error contract, request ids, health, ops endpoints, test alert, malicious input; then with the database STOPPED: safe 503s, one sanitised critical alert; then recovery (33 checks). Needs `smtp-sink-server.js` (local SMTP sink; it proves the SMTP code path only, not delivery to a mailbox) and an orchestrator that stops/starts the disposable PostgreSQL between phases |
 | `price-exposure-probe.js` | prints which roles see which money fields on each route (documentation evidence, no pass/fail) |
 
 ## Run
