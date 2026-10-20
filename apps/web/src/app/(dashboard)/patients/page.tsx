@@ -3,6 +3,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useDebounce } from 'use-debounce';
 import { format } from 'date-fns';
+import { ErrorState } from '@/components/ui/error-state';
+import { describeApiError } from '@/lib/api-error';
+import { buildPatientPayload } from '@/lib/payloads';
 import { patientsApi } from '@/lib/api';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,14 +39,15 @@ function AddPatientModal({ onClose, onSuccess }: { onClose: () => void; onSucces
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;                // double-submit protection
     setSaving(true);
     try {
-      await patientsApi.create(form);
+      await patientsApi.create(buildPatientPayload(form));
       toast.success('Patient added successfully');
       onSuccess();
       onClose();
-    } catch {
-      toast.error('Failed to add patient');
+    } catch (err) {
+      toast.error(describeApiError(err, 'Failed to add patient'));
     } finally {
       setSaving(false);
     }
@@ -250,7 +254,7 @@ export default function PatientsPage() {
 
   const LIMIT = 20;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['patients', search, page],
     queryFn: () => patientsApi.list({ search: search || undefined, page, limit: LIMIT }),
   });
@@ -330,7 +334,15 @@ export default function PatientsPage() {
                 </TableRow>
               ))}
 
-              {!isLoading && (data?.items?.length ?? 0) === 0 && (
+              {isError && (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <ErrorState title="Could not load patients" error={error} onRetry={() => refetch()} retrying={isFetching} compact />
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {!isLoading && !isError && (data?.items?.length ?? 0) === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">

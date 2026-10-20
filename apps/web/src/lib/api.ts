@@ -1,11 +1,18 @@
-import axios from 'axios';
-import { reportClientError } from './error-reporter';
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { newRequestId, parseApiError, ApiErrorInfo } from './api-error';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
-export const api = axios.create({ baseURL: BASE });
+/** Every request gets a hard timeout so a hung server surfaces as an error instead of an endless spinner. */
+export const API_TIMEOUT_MS = 20_000;
+export const api = axios.create({ baseURL: BASE, timeout: API_TIMEOUT_MS });
+
+/** The parsed, user-safe error is attached to every rejection: `(err as ApiError).apiError`. */
+export type ApiError = AxiosError & { apiError: ApiErrorInfo };
 
 api.interceptors.request.use((config) => {
+  // Correlation id: the server logs it with every line of this request and returns it in error bodies.
+  config.headers.set('X-Request-Id', newRequestId());
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('access_token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -13,49 +20,50 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * Single-flight token refresh. The API ROTATES refresh tokens (the old one is revoked on use), so (1) the new refresh
+ * token must be stored, and (2) concurrent 401s must share one refresh call: a second parallel refresh with the old
+ * token would be rejected and log the user out.
+ */
+let refreshing: Promise<string> | null = null;
+function refreshAccessToken(): Promise<string> {
+  if (!refreshing) {
+    refreshing = (async () => {
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (!refreshToken) throw new Error('no refresh token');
+      const { data } = await axios.post(`${BASE}/auth/refresh`, { refreshToken }, { timeout: API_TIMEOUT_MS, headers: { 'X-Request-Id': newRequestId() } });
+      localStorage.setItem('access_token', data.data.accessToken);
+      if (data.data.refreshToken) localStorage.setItem('refresh_token', data.data.refreshToken);
+      return data.data.accessToken as string;
+    })().finally(() => { refreshing = null; });
+  }
+  return refreshing;
+}
+
+type Retriable = InternalAxiosRequestConfig & { _retried?: boolean };
+
 api.interceptors.response.use(
   (r) => r,
-  async (err) => {
-    const status = err.response?.status;
-    const url    = `${err.config?.method?.toUpperCase() ?? 'GET'} ${err.config?.baseURL ?? ''}${err.config?.url ?? ''}`;
-    const respBody = err.response?.data;
+  async (err: AxiosError) => {
+    const config = err.config as Retriable | undefined;
 
-    // Try refresh-on-401 (only for non-auth endpoints)
-    if (status === 401 && typeof window !== 'undefined' && !err.config?.url?.includes('/auth/')) {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (refreshToken) {
-        try {
-          const { data } = await axios.post(`${BASE}/auth/refresh`, { refreshToken });
-          localStorage.setItem('access_token', data.data.accessToken);
-          err.config.headers.Authorization = `Bearer ${data.data.accessToken}`;
-          return api(err.config);
-        } catch {
-          localStorage.clear();
-          window.location.href = '/login';
-        }
+    // 401 on a normal endpoint: refresh once and replay the request once.
+    if (err.response?.status === 401 && typeof window !== 'undefined' && config && !config._retried && !config.url?.includes('/auth/')) {
+      try {
+        const token = await refreshAccessToken();
+        config._retried = true;
+        config.headers.Authorization = `Bearer ${token}`;
+        return api(config);
+      } catch {
+        localStorage.clear();
+        window.location.href = '/login';
       }
     }
 
-    // Report all API errors (network failures, 4xx, 5xx) to the API's /errors/client endpoint.
-    // Reporting itself is fire-and-forget and never blocks the rejection.
-    const isNetworkError = !err.response;
-    const message = isNetworkError
-      ? `Network error: ${err.message}`
-      : `API ${status}: ${respBody?.message ?? err.message}`;
-
-    reportClientError({
-      message,
-      stack:   err.stack,
-      level:   status && status >= 500 ? 'fatal' : 'error',
-      context: 'axios',
-      extra: {
-        url,
-        status,
-        responseBody: respBody,
-        isNetworkError,
-      },
-    }).catch(() => { /* never throw from interceptor */ });
-
+    // Failures are NEVER turned into empty successes: the rejection continues, carrying a safe parsed description.
+    // (Server errors are already logged and alerted server-side with the same request id; the browser does not
+    // re-report API failures, which avoided duplicate alerts and leaking response bodies.)
+    (err as ApiError).apiError = parseApiError(err);
     return Promise.reject(err);
   },
 );

@@ -5,6 +5,8 @@ import {
   format, addDays, subDays, startOfWeek, endOfWeek,
   eachDayOfInterval, isSameDay, parseISO, addWeeks, subWeeks,
 } from 'date-fns';
+import { ErrorState } from '@/components/ui/error-state';
+import { describeApiError } from '@/lib/api-error';
 import { appointmentsApi } from '@/lib/api';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -194,7 +196,7 @@ export default function AppointmentsPage() {
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
   // List view: single day
-  const { data: dayData, isLoading } = useQuery({
+  const { data: dayData, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['appointments', dateStr, statusFilter, search],
     queryFn: () => appointmentsApi.list({
       date: dateStr,
@@ -227,7 +229,7 @@ export default function AppointmentsPage() {
       setSelectedAppt(null);
       toast.success('Status updated');
     },
-    onError: () => toast.error('Failed to update status'),
+    onError: (e) => toast.error(describeApiError(e, 'Failed to update status')),
   });
 
   const isToday = format(selectedDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
@@ -371,7 +373,15 @@ export default function AppointmentsPage() {
                   </TableRow>
                 ))}
 
-                {!isLoading && (dayData?.items?.length ?? 0) === 0 && (
+                {isError && (
+                  <TableRow>
+                    <TableCell colSpan={6}>
+                      <ErrorState title="Could not load appointments" error={error} onRetry={() => refetch()} retrying={isFetching} compact />
+                    </TableCell>
+                  </TableRow>
+                )}
+
+                {!isLoading && !isError && (dayData?.items?.length ?? 0) === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="py-16 text-center">
                       <div className="flex flex-col items-center gap-2 text-slate-400">

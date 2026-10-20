@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ErrorState } from '@/components/ui/error-state';
+import { describeApiError } from '@/lib/api-error';
 import { billingApi } from '@/lib/api';
 import { Header } from '@/components/layout/header';
 import { InvoiceBuilder } from '@/components/billing/InvoiceBuilder';
@@ -164,7 +166,7 @@ function InvoiceDrawer({ invoiceId, onClose }: { invoiceId: string; onClose: () 
     onSuccess: (data) => {
       window.open(data.paymentUrl, '_blank');
     },
-    onError: () => toast.error('Failed to create payment link'),
+    onError: (e) => toast.error(describeApiError(e, 'Failed to create payment link')),
   });
 
   return (
@@ -287,7 +289,7 @@ export default function BillingPage() {
 
   const LIMIT = 20;
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['invoices', search, statusFilter, page],
     queryFn: () => billingApi.list({
       search: search || undefined,
@@ -420,7 +422,15 @@ export default function BillingPage() {
                 </TableRow>
               ))}
 
-              {!isLoading && (data?.items?.length ?? 0) === 0 && (
+              {isError && (
+                <TableRow>
+                  <TableCell colSpan={7}>
+                    <ErrorState title="Could not load invoices" error={error} onRetry={() => refetch()} retrying={isFetching} compact />
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {!isLoading && !isError && (data?.items?.length ?? 0) === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">

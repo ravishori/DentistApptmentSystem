@@ -1,5 +1,6 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
+import { ErrorState } from '@/components/ui/error-state';
 import { analyticsApi, appointmentsApi } from '@/lib/api';
 import { RevenueTrendCard, useRevenueAccess } from '@/components/analytics/RevenueTrendCard';
 import { Header } from '@/components/layout/header';
@@ -79,7 +80,7 @@ const PROCEDURE_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444']
 export default function DashboardPage() {
   const today = format(new Date(), 'EEEE, d MMMM yyyy');
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading, isError: statsError, error: statsErr, refetch: refetchStats, isFetching: statsFetching } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn:  analyticsApi.dashboard,
   });
@@ -117,6 +118,9 @@ export default function DashboardPage() {
       />
 
       <div className="page-content">
+        {statsError && (
+          <ErrorState title="Could not load the dashboard figures" error={statsErr} onRetry={() => refetchStats()} retrying={statsFetching} compact />
+        )}
         {/* ── KPI row ──────────────────────────────────────────────────── */}
         <div className={`grid grid-cols-2 gap-3 md:gap-4 ${moneyHidden ? 'xl:grid-cols-2' : 'xl:grid-cols-4'}`}>
           {statsLoading ? (

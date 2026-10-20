@@ -7,7 +7,8 @@ export interface ClientError {
   componentStack?: string;
   level?:          'error' | 'warning' | 'fatal';
   context?:        string;
-  extra?:          Record<string, unknown>;
+  /** Correlation id of a failed API call this error relates to (so support can join browser and server logs). */
+  requestId?:      string;
 }
 
 /**
@@ -34,10 +35,9 @@ export async function reportClientError(err: ClientError): Promise<string | null
         componentStack:  err.componentStack,
         level:           err.level ?? 'error',
         context:         err.context,
-        extra:           err.extra,
-        url:             typeof window !== 'undefined' ? window.location.href : undefined,
-        userAgent:       typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
-        timestamp:       new Date().toISOString(),
+        requestId:       err.requestId,
+        // path only: query strings and fragments can carry ids or tokens
+        url:             typeof window !== 'undefined' ? window.location.pathname : undefined,
       }),
       // Short timeout — don't block user interaction
       signal: AbortSignal.timeout(5000),
@@ -63,7 +63,6 @@ export function installGlobalErrorHandlers() {
       stack:   event.error?.stack,
       level:   'error',
       context: 'window.onerror',
-      extra:   { filename: event.filename, lineno: event.lineno, colno: event.colno },
     });
   });
 

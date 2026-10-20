@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { appointmentsApi, usersApi } from '@/lib/api';
+import { describeApiError } from '@/lib/api-error';
+import { buildBookingPayload } from '@/lib/payloads';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -42,11 +44,13 @@ export function BookAppointmentModal({ onClose, defaultDate }: Props) {
       toast.success('Appointment booked! WhatsApp confirmation will be sent.');
       onClose();
     },
-    onError: (e: any) => toast.error(e.response?.data?.message ?? 'Booking failed'),
+    onError: (e) => toast.error(describeApiError(e, 'Booking failed')),
   });
 
   const onSubmit = (data: any) => {
-    book.mutate({ ...data, dentistId: selectedDentist, date: selectedDate, bookedVia: 'web' });
+    // double-submit protection: ignore a second submit while the first request is still pending
+    if (book.isPending) return;
+    book.mutate(buildBookingPayload(data, selectedDentist, selectedDate));
   };
 
   return (
@@ -145,7 +149,7 @@ export function BookAppointmentModal({ onClose, defaultDate }: Props) {
               <Button type="button" variant="outline" className="flex-1" onClick={onClose}>
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1" loading={book.isPending}>
+              <Button type="submit" className="flex-1" loading={book.isPending} disabled={book.isPending}>
                 Book Appointment
               </Button>
             </div>
