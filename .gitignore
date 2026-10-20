@@ -4,6 +4,7 @@ node_modules/
 # build output / caches
 dist/
 .next/
+.next-build/
 .turbo/
 coverage/
 *.tsbuildinfo
