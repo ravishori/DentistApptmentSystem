@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { SidebarContext } from '@/components/layout/sidebar-context';
+import { CommandPalette } from '@/components/layout/command-palette';
 import { useAuth } from '@/lib/auth';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -18,6 +19,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <SidebarContext.Provider value={ctx}>
+      <CommandPalette />
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <div className="flex min-h-screen bg-background">
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />

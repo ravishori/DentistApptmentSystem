@@ -1,5 +1,9 @@
 import type { Config } from 'tailwindcss';
 
+const brandScale = Object.fromEntries(
+  [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => [n, `hsl(var(--brand-${n}) / <alpha-value>)`]),
+);
+
 const config: Config = {
   darkMode: ['class'],
   content: [
@@ -24,13 +28,10 @@ const config: Config = {
         primary: {
           DEFAULT:    'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
-          50:  '#EFF6FF',
-          100: '#DBEAFE',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-          900: '#1E3A8A',
+          ...brandScale,
         },
+        // Legacy blue-* utilities follow the active theme's brand colour
+        blue: brandScale,
         secondary: {
           DEFAULT:    'hsl(var(--secondary))',
           foreground: 'hsl(var(--secondary-foreground))',
@@ -66,7 +67,15 @@ const config: Config = {
         // Brand
         teal: { 50: '#F0FDFA', 500: '#14B8A6', 600: '#0D9488' },
         surface: 'hsl(var(--surface))',
-        sidebar: 'hsl(var(--sidebar))',
+        sidebar: {
+          DEFAULT:    'hsl(var(--sidebar))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          muted:      'hsl(var(--sidebar-muted))',
+          hover:      'hsl(var(--sidebar-hover))',
+          border:     'hsl(var(--sidebar-border))',
+          active:     'hsl(var(--sidebar-active))',
+        },
+        chart: Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [n, `hsl(var(--chart-${n}) / <alpha-value>)`])),
       },
       borderRadius: {
         lg:  'var(--radius)',
@@ -77,11 +86,14 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-inter)', 'Inter', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'Georgia', 'serif'],
       },
       fontSize: {
         // Type scale: [size, line-height]
-        display: ['2rem',    { lineHeight: '2.5rem',  letterSpacing: '-0.02em', fontWeight: '700' }],
-        title:   ['1.25rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em', fontWeight: '600' }],
+        // Fluid scale (clamp): readable on 320px phones, roomy on desktop
+        display: ['clamp(1.5rem, 1.1rem + 1.8vw, 2.25rem)', { lineHeight: '1.15', letterSpacing: '-0.02em', fontWeight: '600' }],
+        title:   ['clamp(1.125rem, 1rem + 0.6vw, 1.375rem)', { lineHeight: '1.3', letterSpacing: '-0.01em', fontWeight: '600' }],
+        stat:    ['clamp(1.375rem, 1.1rem + 1vw, 1.875rem)', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '700' }],
       },
       boxShadow: {
         card:    'var(--shadow-card)',

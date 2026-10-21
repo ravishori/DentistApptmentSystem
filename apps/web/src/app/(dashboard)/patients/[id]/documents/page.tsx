@@ -41,7 +41,7 @@ export default function DocumentsPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Documents</h1>
+          <h1 className="font-display text-display text-foreground">Documents</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {patient?.fullName}
             {total > 0 ? ` · ${total} file${total !== 1 ? 's' : ''}` : ''}

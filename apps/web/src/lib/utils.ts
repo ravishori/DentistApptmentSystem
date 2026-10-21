@@ -58,3 +58,10 @@ export function relativeTime(date: string | Date): string {
   if (days  < 7)   return `${days}d ago`;
   return formatDate(d, 'short');
 }
+
+/** "Dr. Name" without doubling the title when the stored name already starts with it. */
+export function formatDentist(name?: string | null): string {
+  const n = (name ?? '').trim();
+  if (!n) return 'Dentist';
+  return /^dr\.?\s/i.test(n) ? n : `Dr. ${n}`;
+}

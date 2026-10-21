@@ -55,12 +55,12 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-blue-900 via-blue-700 to-teal-600 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[45%] bg-sidebar text-sidebar-foreground flex-col justify-between p-12 relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/5" />
           <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-blue-800/30" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/20" />
         </div>
 
         <div className="relative z-10 flex items-center gap-3">
@@ -78,26 +78,14 @@ export default function LoginPage() {
           <h2 className="text-4xl font-bold text-white leading-tight">
             Manage your clinic<br />the smart way
           </h2>
-          <p className="text-blue-200 text-lg leading-relaxed max-w-sm">
+          <p className="text-sidebar-muted text-lg leading-relaxed max-w-sm">
             Appointments, billing, patient CRM, and WhatsApp automation — all in one place.
           </p>
 
-          <div className="grid grid-cols-3 gap-4 pt-4">
-            {[
-              { label: 'Clinics', value: '500+' },
-              { label: 'Appointments', value: '2M+' },
-              { label: 'Uptime', value: '99.9%' },
-            ].map((s) => (
-              <div key={s.label} className="bg-white/10 backdrop-blur rounded-xl p-3 text-center">
-                <p className="text-white font-bold text-xl">{s.value}</p>
-                <p className="text-blue-200 text-xs mt-0.5">{s.label}</p>
-              </div>
-            ))}
-          </div>
         </div>
 
-        <p className="relative z-10 text-blue-300 text-sm">
-          © 2024 DentalEase · Trusted by dentists across India
+        <p className="relative z-10 text-sidebar-muted text-sm">
+          DentalEase · Clinic management platform
         </p>
       </div>
 
@@ -106,14 +94,14 @@ export default function LoginPage() {
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
               <Zap className="w-6 h-6 text-white" />
             </div>
             <span className="text-xl font-bold text-slate-900">DentalEase</span>
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
+            <h1 className="font-display text-display text-foreground">Welcome back</h1>
             <p className="text-slate-500 text-sm mt-1">Sign in to your clinic dashboard</p>
           </div>
 
@@ -131,7 +119,7 @@ export default function LoginPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             <div>
               <label className="label">Email address</label>
               <Input
@@ -146,9 +134,6 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="label mb-0">Password</label>
-                <a href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
-                  Forgot password?
-                </a>
               </div>
               <Input
                 {...register('password')}

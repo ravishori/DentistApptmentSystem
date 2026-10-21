@@ -395,11 +395,11 @@ export default function PatientsPage() {
                         {formatCurrency(p.outstandingBalance)}
                       </Badge>
                     ) : (
-                      <span className="text-xs text-slate-300">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell>
-                    <ChevronRight className="w-4 h-4 text-slate-300" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </TableCell>
                 </TableRow>
               ))}

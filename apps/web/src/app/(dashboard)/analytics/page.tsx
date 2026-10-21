@@ -11,12 +11,13 @@ import {
   ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell,
   Legend, LineChart, Line,
 } from 'recharts';
+import { chartColor, CHART_GRID, CHART_AXIS, legendLabel } from '@/lib/chart-theme';
 import {
   TrendingUp, TrendingDown, DollarSign, Users, Calendar,
   AlertTriangle, Star, Download, FileText, Activity,
   UserX, Crown, ChevronRight,
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDentist } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/empty-state';
 import { RevenueTrendCard, useRevenueAccess } from '@/components/analytics/RevenueTrendCard';
 import { RevenueAccessManager } from '@/components/analytics/RevenueAccessManager';
@@ -24,14 +25,14 @@ import { RevenueAccessManager } from '@/components/analytics/RevenueAccessManage
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const CHART_COLORS = {
-  blue:   '#3B82F6',
-  green:  '#10B981',
-  purple: '#8B5CF6',
-  amber:  '#F59E0B',
-  red:    '#EF4444',
-  teal:   '#14B8A6',
-  indigo: '#6366F1',
-  pink:   '#EC4899',
+  blue:   chartColor(1),
+  green:  chartColor(2),
+  purple: chartColor(3),
+  amber:  chartColor(4),
+  red:    chartColor(5),
+  teal:   chartColor(6),
+  indigo: chartColor(7),
+  pink:   chartColor(8),
 };
 const PIE_PALETTE = Object.values(CHART_COLORS);
 
@@ -85,7 +86,7 @@ function KpiCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider truncate">{label}</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1 leading-tight">{value}</p>
+            <p className="text-stat tabular-nums text-slate-900 mt-1 leading-tight">{value}</p>
             {subValue && <p className="text-xs text-slate-500 mt-0.5">{subValue}</p>}
             {change !== undefined && (
               <div className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${up ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -208,13 +209,13 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
             {failedQ(trendsQ) ? <SectionError q={trendsQ} title="Could not load the appointments chart" /> : (
 <ResponsiveContainer width="100%" height={200}>
               <BarChart data={trends ?? []} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTip />} />
                 <Bar dataKey="completed" name="Completed" stackId="a" fill={CHART_COLORS.green}  radius={[0,0,0,0]} />
                 <Bar dataKey="noShow"    name="No-Show"   stackId="a" fill={CHART_COLORS.red}    radius={[4,4,0,0]} />
-                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <Legend formatter={legendLabel} iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
               </BarChart>
             </ResponsiveContainer>
 )}
@@ -268,7 +269,7 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
                       <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0">
                         {d.dentistName?.charAt(0)}
                       </div>
-                      <p className="text-sm font-medium text-slate-800 truncate">Dr. {d.dentistName}</p>
+                      <p className="text-sm font-medium text-slate-800 truncate">{formatDentist(d.dentistName)}</p>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-slate-500 shrink-0">
                       <span className="text-emerald-600 font-medium">{d.completed} done</span>
@@ -410,9 +411,9 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
                     <stop offset="95%" stopColor={CHART_COLORS.green} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 10, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false}
                   tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} width={44} />
                 <Tooltip content={<ChartTip currency />} />
                 <Area type="monotone" dataKey="revenue" name="Revenue"
@@ -437,7 +438,7 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
                 </Pie>
                 <Tooltip formatter={(v: any, name: any) => [formatCurrency(Number(v)), name.replace(/_/g,' ')]} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }}
-                  formatter={(v: string) => v.replace(/_/g, ' ')} />
+                  formatter={(v: string) => legendLabel(v.replace(/_/g, " "))} />
               </PieChart>
             </ResponsiveContainer>
 )}
@@ -452,9 +453,9 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
             <SectionHeader title="Year-over-Year Revenue" />
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={yearlyTrends} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="period" tick={{ fontSize: 12, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis dataKey="period" tick={{ fontSize: 12, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false}
                   tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} width={48} />
                 <Tooltip content={<ChartTip currency />} />
                 <Bar dataKey="revenue" name="Revenue" fill={CHART_COLORS.indigo} radius={[6, 6, 0, 0]} />
@@ -499,17 +500,17 @@ function PatientsTabContent() {
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500">Avg Patient LTV</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{failedQ(ltvQ) ? '—' : formatCurrency(ltv?.avgLtv ?? 0)}</p>
+          <p className="text-stat tabular-nums text-slate-800 mt-1">{failedQ(ltvQ) ? '—' : formatCurrency(ltv?.avgLtv ?? 0)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500">Top Patient LTV</p>
-          <p className="text-2xl font-bold text-purple-700 mt-1">
+          <p className="text-stat tabular-nums text-purple-700 mt-1">
             {failedQ(ltvQ) ? '—' : formatCurrency(ltv?.topPatients?.[0]?.ltv ?? 0)}
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 col-span-2 xl:col-span-1">
           <p className="text-xs text-slate-500">Patients with LTV &gt; ₹15k</p>
-          <p className="text-2xl font-bold text-emerald-700 mt-1">
+          <p className="text-stat tabular-nums text-emerald-700 mt-1">
             {ltv?.distribution?.filter((b: any) => ['₹15k–30k', '₹30k–60k', '> ₹60k'].includes(b.bucket))
               .reduce((s: number, b: any) => s + b.patientCount, 0) ?? 0}
           </p>
@@ -524,9 +525,9 @@ function PatientsTabContent() {
             {failedQ(ltvQ) ? <SectionError q={ltvQ} title="Could not load the LTV distribution" /> : (
 <ResponsiveContainer width="100%" height={200}>
               <BarChart data={ltv?.distribution ?? []} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
                 <Tooltip content={<ChartTip />} />
                 <Bar dataKey="patientCount" name="Patients" fill={CHART_COLORS.purple} radius={[5, 5, 0, 0]} />
               </BarChart>
@@ -573,9 +574,9 @@ function PatientsTabContent() {
           {failedQ(noShowQ) ? <SectionError q={noShowQ} title="Could not load the no-show trend" /> : (
 <ResponsiveContainer width="100%" height={200}>
             <LineChart data={noShow?.monthly ?? []} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false}
+              <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 10, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false}
                 tickFormatter={v => `${v}%`} width={36} />
               <Tooltip formatter={(v: any) => [`${v}%`, 'No-show rate']} />
               <Line type="monotone" dataKey="rate" name="No-show rate"
@@ -594,9 +595,9 @@ function PatientsTabContent() {
             {failedQ(noShowQ) ? <SectionError q={noShowQ} title="Could not load no-shows by day" /> : (
 <ResponsiveContainer width="100%" height={180}>
               <BarChart data={noShow?.byDow ?? []} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false}
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false}
                   tickFormatter={v => `${v}%`} width={32} />
                 <Tooltip formatter={(v: any) => [`${v}%`, 'No-show rate']} />
                 <Bar dataKey="rate" name="No-show %" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} />
@@ -616,7 +617,7 @@ function PatientsTabContent() {
                 {noShow.byDentist.map((d: any) => (
                   <div key={d.dentistName}>
                     <div className="flex justify-between text-xs mb-1">
-                      <span className="font-medium text-slate-700">Dr. {d.dentistName}</span>
+                      <span className="font-medium text-slate-700">{formatDentist(d.dentistName)}</span>
                       <span className="text-slate-500">{d.noShows} / {d.total} · <strong className={`${d.rate > 20 ? 'text-red-600' : d.rate > 10 ? 'text-amber-600' : 'text-emerald-600'}`}>{d.rate}%</strong></span>
                     </div>
                     <div className="w-full bg-slate-100 rounded-full h-2">
@@ -863,10 +864,10 @@ export default function AnalyticsPage() {
 
         <div className="page-content">
           {/* Tab bar */}
-          <div className="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-2xl w-fit shadow-sm no-print">
+          <div className="flex items-center gap-1 bg-white border border-slate-200 p-1 rounded-2xl w-fit max-w-full overflow-x-auto shadow-sm no-print">
             {TABS.map(tab => (
               <button key={tab} onClick={() => setActiveTab(tab)}
-                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors sm:gap-2 sm:px-4 ${
                   activeTab === tab
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'

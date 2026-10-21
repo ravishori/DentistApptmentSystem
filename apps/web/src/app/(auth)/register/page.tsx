@@ -59,11 +59,11 @@ export default function RegisterPage() {
   return (
     <div className="min-h-screen flex">
       {/* Left panel — branding */}
-      <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-blue-900 via-blue-700 to-teal-600 flex-col justify-between p-12 relative overflow-hidden">
+      <div className="hidden lg:flex lg:w-[45%] bg-sidebar text-sidebar-foreground flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-white/5" />
           <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-white/5" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-blue-800/30" />
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/20" />
         </div>
 
         <div className="relative z-10 flex items-center gap-3">
@@ -81,12 +81,12 @@ export default function RegisterPage() {
           <h2 className="text-4xl font-bold text-white leading-tight">
             Set up your clinic<br />in under 2 minutes
           </h2>
-          <p className="text-blue-200 text-lg leading-relaxed max-w-sm">
+          <p className="text-sidebar-muted text-lg leading-relaxed max-w-sm">
             Get a fully-loaded dental clinic OS with appointments, billing, patient CRM,
             and WhatsApp automation — out of the box.
           </p>
 
-          <ul className="space-y-2 pt-2 text-blue-100 text-sm">
+          <ul className="space-y-2 pt-2 text-sidebar-muted text-sm">
             {[
               'Unlimited patients & appointments during trial',
               'WhatsApp confirmations & reminders',
@@ -100,8 +100,8 @@ export default function RegisterPage() {
           </ul>
         </div>
 
-        <p className="relative z-10 text-blue-300 text-sm">
-          © 2024 DentalEase · Trusted by dentists across India
+        <p className="relative z-10 text-sidebar-muted text-sm">
+          DentalEase · Clinic management platform
         </p>
       </div>
 
@@ -109,14 +109,14 @@ export default function RegisterPage() {
       <main id="main-content" className="flex flex-1 items-center justify-center overflow-y-auto bg-background p-6">
         <div className="w-full max-w-sm space-y-6 py-8">
           <div className="lg:hidden flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
               <Zap className="w-6 h-6 text-white" />
             </div>
             <span className="text-xl font-bold text-slate-900">DentalEase</span>
           </div>
 
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Create your clinic</h1>
+            <h1 className="font-display text-display text-foreground">Create your clinic</h1>
             <p className="text-slate-500 text-sm mt-1">Start your 14-day free trial — no card needed</p>
           </div>
 
@@ -134,7 +134,7 @@ export default function RegisterPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5" noValidate>
+          <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-3.5" noValidate>
             <div>
               <label className="label">Clinic name</label>
               <Input

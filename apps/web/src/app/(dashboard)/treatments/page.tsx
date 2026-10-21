@@ -5,7 +5,7 @@ import { treatmentsApi, TREATMENTS_API_AVAILABLE } from '@/lib/api';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,7 +13,7 @@ import {
   Search, Plus, Stethoscope, X, ChevronDown, ChevronUp, CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDentist } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
 function TreatmentCard({ plan }: { plan: any }) {
@@ -35,16 +35,14 @@ function TreatmentCard({ plan }: { plan: any }) {
                 <div>
                   <p className="font-semibold text-slate-900">{plan.planTitle}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {plan.patient?.fullName} · Dr. {plan.dentist?.fullName}
+                    {plan.patient?.fullName} · {formatDentist(plan.dentist?.fullName)}
                   </p>
                   {plan.diagnosis && (
                     <p className="text-xs text-slate-400 italic mt-1">{plan.diagnosis}</p>
                   )}
                 </div>
                 <div className="text-right shrink-0">
-                  <Badge variant={statusVariant(plan.status)} className="capitalize mb-1.5">
-                    {plan.status?.replace(/_/g, ' ')}
-                  </Badge>
+                  <StatusBadge status={plan.status} className="mb-1.5" />
                   <p className="text-sm font-bold text-slate-800">
                     {formatCurrency(plan.totalEstimatedCost ?? 0)}
                   </p>

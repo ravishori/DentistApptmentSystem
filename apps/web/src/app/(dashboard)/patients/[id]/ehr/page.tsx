@@ -1,4 +1,5 @@
 'use client';
+import { formatDentist } from '@/lib/utils';
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -59,7 +60,7 @@ export default function EhrPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">{patient?.fullName}</h1>
+          <h1 className="font-display text-display text-foreground">{patient?.fullName}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {patient?.age ? `${patient.age} yrs · ` : ''}
             {patient?.gender ? `${patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)} · ` : ''}
@@ -79,7 +80,7 @@ export default function EhrPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit max-w-full overflow-x-auto">
         {(['chart', 'timeline'] as const).map(tab => (
           <button
             key={tab}
@@ -163,7 +164,7 @@ function VisitCard({ visit, isFirst }: { visit: any; isFirst: boolean }) {
           <div>
             <p className="font-semibold text-slate-800">{date}</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              Dr. {visit.dentist?.fullName}
+              {formatDentist(visit.dentist?.fullName)}
               {visit.chiefComplaint ? ` · ${visit.chiefComplaint}` : ''}
             </p>
           </div>

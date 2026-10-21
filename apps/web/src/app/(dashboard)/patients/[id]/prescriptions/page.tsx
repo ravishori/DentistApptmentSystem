@@ -64,7 +64,7 @@ export default function PrescriptionsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Prescriptions</h1>
+          <h1 className="font-display text-display text-foreground">Prescriptions</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {patient?.fullName} · {total} prescription{total !== 1 ? 's' : ''}
           </p>

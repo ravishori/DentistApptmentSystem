@@ -1,103 +1,11 @@
+@import '../styles/tokens.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   DESIGN TOKENS — single source of truth for colour, radius, shadow, layout.
-   Values are HSL triplets consumed as hsl(var(--token)) (see tailwind.config.ts).
-   Dark mode: class="dark" on <html> (ThemeToggle sets it; persisted in
-   localStorage, defaults to the OS preference).
-   ═══════════════════════════════════════════════════════════════════════════ */
+/* Design tokens live in src/styles/tokens.css (seven themes, selected via <html data-theme>; dark-family themes also carry class="dark"). */
 @layer base {
-  :root {
-    color-scheme: light;
-    --background:         210 40% 98%;
-    --surface:            210 40% 98%;
-    --foreground:         222 47% 11%;
-    --card:               0 0% 100%;
-    --card-foreground:    222 47% 11%;
-    --popover:            0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary:            221 83% 53%;      /* blue-600: 5.2:1 against white text */
-    --primary-foreground: 0 0% 100%;
-    --secondary:          210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted:              210 40% 96%;
-    --muted-foreground:   215 16% 40%;      /* >= 4.5:1 on background and card */
-    --accent:             210 40% 96%;
-    --accent-foreground:  222 47% 11%;
-    --destructive:        0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --success:            160 84% 30%;
-    --success-foreground: 0 0% 100%;
-    --warning:            32 95% 40%;
-    --warning-foreground: 0 0% 100%;
-    --info:               199 89% 38%;
-    --info-foreground:    0 0% 100%;
-    --border:             214 32% 91%;
-    --input:              213 27% 74%;      /* control borders stay visible (non-text 3:1) */
-    --ring:               221 83% 53%;
-    --sidebar:            222 47% 11%;
-    --radius:             0.5rem;
-    --sidebar-width:      260px;
-    --shadow-card:    0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.04);
-    --shadow-popover: 0 10px 30px -8px rgb(15 23 42 / 0.25);
-    --slate-50: 210 40% 98%;
-    --slate-100: 210 40% 96%;
-    --slate-200: 214 32% 91%;
-    --slate-300: 213 27% 84%;
-    --slate-400: 215 20% 65%;
-    --slate-500: 215 16% 47%;
-    --slate-600: 215 19% 35%;
-    --slate-700: 215 25% 27%;
-    --slate-800: 217 33% 17%;
-    --slate-900: 222 47% 11%;
-    --slate-950: 229 84% 5%;
-  }
-
-  .dark {
-    color-scheme: dark;
-    --background:         222 47% 7%;
-    --surface:            222 47% 7%;
-    --foreground:         210 40% 96%;
-    --card:               222 40% 11%;
-    --card-foreground:    210 40% 96%;
-    --popover:            222 40% 11%;
-    --popover-foreground: 210 40% 96%;
-    --primary:            217 91% 60%;
-    --primary-foreground: 222 47% 8%;
-    --secondary:          217 28% 18%;
-    --secondary-foreground: 210 40% 96%;
-    --muted:              217 28% 18%;
-    --muted-foreground:   215 18% 68%;
-    --accent:             217 28% 18%;
-    --accent-foreground:  210 40% 96%;
-    --destructive:        0 84% 62%;
-    --destructive-foreground: 222 47% 8%;
-    --success:            158 64% 52%;
-    --success-foreground: 222 47% 8%;
-    --warning:            38 92% 56%;
-    --warning-foreground: 222 47% 8%;
-    --info:               199 89% 60%;
-    --info-foreground:    222 47% 8%;
-    --border:             217 28% 22%;
-    --input:              217 22% 38%;
-    --ring:               217 91% 65%;
-    --sidebar:            222 47% 5%;
-    --shadow-card:    0 1px 2px 0 rgb(0 0 0 / 0.4);
-    --shadow-popover: 0 10px 30px -8px rgb(0 0 0 / 0.6);
-    --slate-50: 222 40% 10%;
-    --slate-100: 222 33% 14%;
-    --slate-200: 217 28% 22%;
-    --slate-300: 217 22% 31%;
-    --slate-400: 215 18% 56%;
-    --slate-500: 215 16% 66%;
-    --slate-600: 214 20% 75%;
-    --slate-700: 213 27% 84%;
-    --slate-800: 214 32% 91%;
-    --slate-900: 210 40% 96%;
-    --slate-950: 210 40% 98%;
-  }
+  :root { --sidebar-width: 260px; }
 
   * { box-sizing: border-box; border-color: hsl(var(--border)); }
 
@@ -111,6 +19,12 @@
   }
 
   h1, h2, h3, h4, h5, h6 { letter-spacing: -0.01em; }
+
+  /* Visually-hidden data tables (chart fallbacks) must not widen the page: tables ignore width:1px */
+  table.sr-only { display: block; overflow: hidden; }
+
+  /* Money, counts, dates and times line up in columns */
+  table, .tabular, [data-numeric] { font-variant-numeric: tabular-nums; }
 
   /* Keyboard focus: one consistent, always-visible ring on every interactive element */
   :focus-visible {
@@ -203,13 +117,19 @@
 
 /* ── Dark-mode adaptation of hard-coded Tailwind utilities used across pages ── */
 @layer utilities {
+  /* Legacy status text colours resolve to the theme's semantic status tokens (AA contrast in every theme) */
+  :root .text-emerald-600, :root .text-emerald-700, :root .text-green-600, :root .text-green-700 { color: hsl(var(--success)); }
+  :root .text-orange-600, :root .text-orange-700, :root .text-amber-600, :root .text-amber-700, :root .text-yellow-700 { color: hsl(var(--warning)); }
+  :root .text-red-500, :root .text-red-600, :root .text-red-700 { color: hsl(var(--destructive)); }
   .dark .bg-white, .dark .bg-\[\#F8FAFC\] { background-color: hsl(var(--card)); }
   .dark .bg-white\/95 { background-color: hsl(var(--card) / 0.95); }
   .dark .bg-white\/10, .dark .bg-white\/5 { background-color: hsl(0 0% 100% / 0.08); }
   .dark .shadow-sm, .dark .shadow { box-shadow: var(--shadow-card); }
-  .dark .bg-blue-50, .dark .bg-blue-100 { background-color: theme('colors.blue.500 / 0.16'); }
-  .dark .text-blue-600, .dark .text-blue-700, .dark .text-blue-800, .dark .text-blue-900 { color: theme('colors.blue.300'); }
-  .dark .border-blue-200, .dark .border-blue-300 { border-color: theme('colors.blue.500 / 0.35'); }
+  .dark .bg-blue-50, .dark .bg-blue-100 { background-color: hsl(var(--primary) / 0.16); }
+  .dark .text-blue-300, .dark .text-blue-400, .dark .text-blue-500, .dark .text-blue-600, .dark .text-blue-700, .dark .text-blue-800, .dark .text-blue-900 { color: hsl(var(--brand-text)); }
+  .dark .bg-blue-200 { background-color: hsl(var(--primary) / 0.3); }
+  .dark .border-blue-100 { border-color: hsl(var(--primary) / 0.25); }
+  .dark .border-blue-200, .dark .border-blue-300 { border-color: hsl(var(--primary) / 0.35); }
   .dark .bg-emerald-50, .dark .bg-emerald-100 { background-color: theme('colors.emerald.500 / 0.16'); }
   .dark .text-emerald-600, .dark .text-emerald-700, .dark .text-emerald-800, .dark .text-emerald-900 { color: theme('colors.emerald.300'); }
   .dark .border-emerald-200, .dark .border-emerald-300 { border-color: theme('colors.emerald.500 / 0.35'); }

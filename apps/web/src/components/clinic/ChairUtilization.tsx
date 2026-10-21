@@ -119,15 +119,15 @@ export function ChairUtilization({ date: initDate }: Props) {
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500">Total Chairs</p>
-          <p className="text-2xl font-bold text-slate-800">{utilization.length}</p>
+          <p className="text-stat tabular-nums text-slate-800">{utilization.length}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500">Busy Chairs</p>
-          <p className="text-2xl font-bold text-blue-700">{busyChairs}</p>
+          <p className="text-stat tabular-nums text-blue-700">{busyChairs}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500">Total Appointments</p>
-          <p className="text-2xl font-bold text-slate-800">{totalAppts}</p>
+          <p className="text-stat tabular-nums text-slate-800">{totalAppts}</p>
         </div>
       </div>
 
@@ -219,7 +219,7 @@ export function ChairUtilization({ date: initDate }: Props) {
 
                     {row.utilization === 0 && (
                       <div className="absolute inset-0 flex items-center pl-2">
-                        <span className="text-xs text-slate-300">— free —</span>
+                        <span className="text-xs text-muted-foreground">— free —</span>
                       </div>
                     )}
                   </div>
@@ -237,8 +237,8 @@ export function ChairUtilization({ date: initDate }: Props) {
           style={{ top: tooltip.y - 80, left: tooltip.x + 12 }}
         >
           <p className="font-semibold">{tooltip.appt.patient?.fullName}</p>
-          <p className="text-slate-300">{tooltip.appt.startTime} – {tooltip.appt.endTime}</p>
-          <p className="text-slate-300">Dr. {tooltip.appt.dentist?.fullName}</p>
+          <p className="text-muted-foreground">{tooltip.appt.startTime} – {tooltip.appt.endTime}</p>
+          <p className="text-muted-foreground">Dr. {tooltip.appt.dentist?.fullName}</p>
           <p className="capitalize text-slate-400">{tooltip.appt.type?.replace('_', ' ')}</p>
         </div>
       )}

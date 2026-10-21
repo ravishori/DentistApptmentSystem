@@ -5,19 +5,20 @@ import { analyticsApi, appointmentsApi } from '@/lib/api';
 import { RevenueTrendCard, useRevenueAccess } from '@/components/analytics/RevenueTrendCard';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   AreaChart, Area, CartesianGrid, PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import { chartColor, CHART_AXIS, CHART_TOOLTIP_STYLE, legendLabel } from '@/lib/chart-theme';
 import {
   Calendar, Users, DollarSign, AlertCircle, TrendingUp,
   TrendingDown, ArrowRight, Clock, CheckCircle2, Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDentist } from '@/lib/utils';
 import Link from 'next/link';
 
 // ── KPI Card ──────────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ function KpiCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{title}</p>
-            <p className="text-2xl font-bold text-slate-900 mt-1.5 leading-none">{value}</p>
+            <p className="text-stat tabular-nums text-slate-900 mt-1.5 leading-none">{value}</p>
             {subtitle && <p className="text-xs text-slate-400 mt-1.5">{subtitle}</p>}
             {trend !== undefined && (
               <div className={`flex items-center gap-1 mt-2 text-xs font-medium ${positive ? 'text-emerald-600' : 'text-red-500'}`}>
@@ -65,17 +66,15 @@ function ApptRow({ appt }: { appt: any }) {
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-slate-900 truncate">{appt.patient?.fullName}</p>
         <p className="text-xs text-slate-500 mt-0.5">
-          {appt.type?.replace(/_/g, ' ')} · Dr. {appt.dentist?.fullName}
+          {appt.type?.replace(/_/g, ' ')} · {formatDentist(appt.dentist?.fullName)}
         </p>
       </div>
-      <Badge variant={statusVariant(appt.status)} className="shrink-0">
-        {appt.status?.replace(/_/g, ' ')}
-      </Badge>
+      <StatusBadge status={appt.status} className="shrink-0" />
     </div>
   );
 }
 
-const PROCEDURE_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444'];
+const PROCEDURE_COLORS = [chartColor(1), chartColor(2), chartColor(3), chartColor(4), chartColor(5)];
 
 export default function DashboardPage() {
   const today = format(new Date(), 'EEEE, d MMMM yyyy');
@@ -187,8 +186,8 @@ export default function DashboardPage() {
                       <Cell key={i} fill={PROCEDURE_COLORS[i % PROCEDURE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12 }} />
-                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+                  <Legend formatter={legendLabel} iconSize={8} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>
             </CardContent>
@@ -208,12 +207,12 @@ export default function DashboardPage() {
             <CardContent>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={apptChart ?? []} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
-                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false}
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false}
                     tickFormatter={(v) => format(new Date(v), 'dd/MM')} />
-                  <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #E2E8F0', fontSize: 12 }}
+                  <YAxis tick={{ fontSize: 11, fill: CHART_AXIS }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={CHART_TOOLTIP_STYLE}
                     labelFormatter={(v) => format(new Date(v), 'd MMM')} />
-                  <Bar dataKey="count" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="count" fill={chartColor(1)} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>

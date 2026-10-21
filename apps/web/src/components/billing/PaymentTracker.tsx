@@ -97,7 +97,7 @@ export function PaymentTracker({ invoice, onUpdated }: Props) {
           <div>
             <p className="text-xs text-slate-500 mb-1">Invoice {invoice.invoiceNumber}</p>
             <div className="flex items-center gap-2">
-              <p className="text-2xl font-bold text-slate-800">
+              <p className="text-stat tabular-nums text-slate-800">
                 ₹{totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </p>
               <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_BADGE[invoice.status] ?? 'bg-slate-100 text-slate-600'}`}>

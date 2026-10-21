@@ -12,9 +12,10 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Building2, Clock, MessageCircle, Users, Shield, Save, Eye, EyeOff,
+  Building2, Clock, MessageCircle, Users, Shield, Save, Eye, EyeOff, Palette,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ThemeSelector } from '@/components/layout/theme-selector';
 import { useAuth } from '@/lib/auth';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -131,6 +132,14 @@ export default function SettingsPage() {
           <span className="text-xs text-slate-400">·</span>
           <span className="text-xs text-slate-400">{data?.clinicName}</span>
         </div>
+
+        {/* Appearance: per-browser preference (stored locally), not clinic data */}
+        <Section icon={Palette} title="Appearance">
+          <p className="mb-3 text-sm text-muted-foreground">
+            Choose a colour theme. It applies immediately and is remembered on this device.
+          </p>
+          <ThemeSelector />
+        </Section>
 
         {/* Clinic Profile */}
         <Section icon={Building2} title="Clinic Profile">

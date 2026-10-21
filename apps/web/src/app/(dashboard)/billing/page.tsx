@@ -10,7 +10,7 @@ import { PaymentTracker } from '@/components/billing/PaymentTracker';
 import { PackageSelector } from '@/components/billing/PackageSelector';
 import { ReportsDashboard } from '@/components/billing/ReportsDashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -118,7 +118,7 @@ function CreateInvoiceModal({ onClose, onSuccess }: { onClose: () => void; onSuc
                       type="number" placeholder="Qty" min="1" required />
                     <button type="button" onClick={() => removeItem(idx)}
                       disabled={items.length === 1}
-                      className="mt-2 text-slate-300 hover:text-red-400 disabled:opacity-30 transition-colors">
+                      className="mt-2 text-muted-foreground hover:text-red-400 disabled:opacity-30 transition-colors">
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -193,9 +193,7 @@ function InvoiceDrawer({ invoiceId, onClose }: { invoiceId: string; onClose: () 
                     <p className="font-bold text-slate-900">{invoice?.invoiceNumber}</p>
                     <p className="text-xs text-slate-400 mt-0.5">{formatDate(invoice?.createdAt)}</p>
                   </div>
-                  <Badge variant={statusVariant(invoice?.status)} className="capitalize">
-                    {invoice?.status?.replace(/_/g, ' ')}
-                  </Badge>
+                  <StatusBadge status={invoice?.status} />
                 </div>
 
                 <div className="bg-slate-50 rounded-xl p-3 space-y-1">
@@ -321,14 +319,14 @@ export default function BillingPage() {
 
       <div className="page-content">
         {/* Tab bar */}
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit mb-2">
+        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit max-w-full overflow-x-auto mb-2">
           {([
             { id: 'invoices',  label: 'Invoices' },
             { id: 'packages',  label: 'Packages' },
             { id: 'reports',   label: 'Reports' },
           ] as { id: Tab; label: string }[]).map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              className={`shrink-0 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 activeTab === t.id ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'
               }`}>
               {t.label}
@@ -401,6 +399,35 @@ export default function BillingPage() {
             </Select>
           </div>
 
+          {/* Phones: stacked invoice cards (tap to open). The table is kept for loading / error / empty states. */}
+          {(data?.items?.length ?? 0) > 0 && (
+            <ul className="divide-y divide-border md:hidden" aria-label="Invoices">
+              {data.items.map((inv: any) => (
+                <li key={inv.id}>
+                  <button
+                    type="button"
+                    onClick={() => setDrawerInvoiceId(inv.id)}
+                    className="flex w-full items-start gap-3 p-4 text-left transition-colors hover:bg-accent"
+                  >
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <p className="truncate text-sm font-semibold text-foreground">{inv.invoiceNumber}</p>
+                      <p className="truncate text-xs text-muted-foreground">{inv.patient?.fullName} · {formatDate(inv.createdAt)}</p>
+                      <StatusBadge status={inv.status} />
+                    </div>
+                    <div className="shrink-0 text-right" data-numeric>
+                      <p className="text-sm font-semibold text-foreground">{formatCurrency(inv.totalAmount)}</p>
+                      {(inv.balanceAmount ?? 0) > 0 && (
+                        <p className="text-xs font-medium text-warning">{formatCurrency(inv.balanceAmount)} due</p>
+                      )}
+                    </div>
+                    <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className={(data?.items?.length ?? 0) > 0 ? 'hidden md:block' : ''}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -452,7 +479,9 @@ export default function BillingPage() {
                 <TableRow
                   key={inv.id}
                   className="cursor-pointer"
+                  tabIndex={0}
                   onClick={() => setDrawerInvoiceId(inv.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDrawerInvoiceId(inv.id); } }}
                 >
                   <TableCell>
                     <p className="text-sm font-semibold text-slate-800">{inv.invoiceNumber}</p>
@@ -469,9 +498,7 @@ export default function BillingPage() {
                     <p className="text-sm font-semibold text-slate-900">{formatCurrency(inv.totalAmount)}</p>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={statusVariant(inv.status)} className="capitalize">
-                      {inv.status?.replace(/_/g, ' ')}
-                    </Badge>
+                    <StatusBadge status={inv.status} />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell text-right">
                     {(inv.balanceAmount ?? 0) > 0 ? (
@@ -479,16 +506,17 @@ export default function BillingPage() {
                         {formatCurrency(inv.balanceAmount)}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-300">—</span>
+                      <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   <TableCell>
-                    <ChevronRight className="w-4 h-4 text-slate-300" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          </div>
 
           {totalPages > 1 && (
             <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between">

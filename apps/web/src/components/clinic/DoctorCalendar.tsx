@@ -121,14 +121,14 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
         </div>
 
         {/* Nav */}
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="flex max-w-full flex-wrap items-center gap-2 sm:ml-auto">
           <button onClick={prev}
             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <span className="text-sm font-medium text-slate-700 min-w-[220px] text-center">{formatHeader()}</span>
+          <span className="text-sm font-medium text-slate-700 min-w-[120px] sm:min-w-[220px] text-center">{formatHeader()}</span>
           <button onClick={next}
             className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,9 +157,9 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
 
       {/* ── WEEK VIEW ── */}
       {mode === 'week' && !loading && !failed && availData.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
           {/* Header row */}
-          <div className="grid border-b border-slate-100" style={{ gridTemplateColumns: `160px repeat(7, 1fr)` }}>
+          <div className="grid border-b border-slate-100" style={{ gridTemplateColumns: `160px repeat(7, 1fr)`, minWidth: 760 }}>
             <div className="px-3 py-3 text-xs font-semibold text-slate-500 border-r border-slate-100">Doctor</div>
             {weekDays.map((d, i) => {
               const isToday = d.toISOString().split('T')[0] === today.toISOString().split('T')[0];
@@ -179,7 +179,7 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
           {availData.map((row: any) => (
             <div key={row.dentist.id}
               className="grid border-b border-slate-50 last:border-0"
-              style={{ gridTemplateColumns: `160px repeat(7, 1fr)` }}>
+              style={{ gridTemplateColumns: `160px repeat(7, 1fr)`, minWidth: 760 }}>
               {/* Doctor name */}
               <div className="px-3 py-3 border-r border-slate-100 flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-xs flex-shrink-0">
@@ -237,15 +237,15 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
               <p className="text-xs text-slate-500">Total Appointments</p>
-              <p className="text-2xl font-bold text-slate-800">{daySchedule.totalAppointments}</p>
+              <p className="text-stat tabular-nums text-slate-800">{daySchedule.totalAppointments}</p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
               <p className="text-xs text-slate-500">Doctors Working</p>
-              <p className="text-2xl font-bold text-slate-800">{daySchedule.byDentist?.length ?? 0}</p>
+              <p className="text-stat tabular-nums text-slate-800">{daySchedule.byDentist?.length ?? 0}</p>
             </div>
             <div className="bg-white rounded-2xl border border-slate-200 p-4">
               <p className="text-xs text-slate-500">Chairs Used</p>
-              <p className="text-2xl font-bold text-slate-800">
+              <p className="text-stat tabular-nums text-slate-800">
                 {daySchedule.byChair?.filter((c: any) => c.appointments.length > 0).length ?? 0}
                 /{daySchedule.byChair?.length ?? 0}
               </p>

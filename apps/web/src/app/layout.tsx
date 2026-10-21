@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Fraunces } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
-import { Toaster } from 'sonner';
+import { ThemedToaster } from '@/components/providers/themed-toaster';
 import { ErrorBoundary } from '@/components/providers/error-boundary';
 import { GlobalErrorSetup } from '@/components/providers/global-error-setup';
-import { THEME_INIT_SCRIPT } from '@/components/layout/theme-toggle';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
+// Editorial display face: headings only (never dense clinical records or tables). Self-hosted by next/font.
+const fraunces = Fraunces({ subsets: ['latin'], variable: '--font-display', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'DentalEase — Clinic Management Platform',
@@ -17,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${fraunces.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
@@ -30,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ErrorBoundary>
             {children}
           </ErrorBoundary>
-          <Toaster position="top-right" richColors closeButton theme="system" />
+          <ThemedToaster />
         </Providers>
       </body>
     </html>

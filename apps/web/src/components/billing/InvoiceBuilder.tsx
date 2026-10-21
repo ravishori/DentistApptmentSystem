@@ -243,7 +243,7 @@ export function InvoiceBuilder({ onCreated }: Props) {
                     <td className="py-1.5 pl-2">
                       {items.length > 1 && (
                         <button type="button" onClick={() => removeLine(i)}
-                          className="text-slate-300 hover:text-red-500 transition-colors">
+                          className="text-muted-foreground hover:text-red-500 transition-colors">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>

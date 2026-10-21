@@ -1,6 +1,11 @@
 /** @type {import('next').NextConfig} */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+// NEXT_PUBLIC_API_URL normally carries a path (http://host:3001/api/v1). A CSP source with a path that does not end in
+// "/" matches ONLY that exact URL, so using it verbatim blocked every API call in the browser. connect-src needs the ORIGIN.
+const API_URL = (() => {
+  const raw = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+  try { return new URL(raw).origin; } catch { return raw; }
+})();
 
 // Content-Security-Policy — defence against XSS and data injection
 const CSP = [

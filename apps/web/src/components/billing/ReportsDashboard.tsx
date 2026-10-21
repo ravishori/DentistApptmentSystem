@@ -72,7 +72,7 @@ export function ReportsDashboard() {
   return (
     <div className="space-y-5">
       {/* Tab bar */}
-      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+      <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-fit max-w-full overflow-x-auto">
         {(['revenue', 'outstanding', 'gst'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${

@@ -299,7 +299,7 @@ function SuccessView({ invoiceNumber, amount, onDone }: {
           <CheckCircle2 className="w-10 h-10 text-emerald-600" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Payment Successful!</h2>
+          <h2 className="font-display text-display text-foreground">Payment Successful!</h2>
           {invoiceNumber && (
             <p className="text-slate-500 text-sm mt-1">Invoice {invoiceNumber}</p>
           )}

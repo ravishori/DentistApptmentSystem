@@ -10,7 +10,7 @@ import { describeApiError } from '@/lib/api-error';
 import { appointmentsApi } from '@/lib/api';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge, statusVariant } from '@/components/ui/badge';
+import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BookAppointmentModal } from '@/components/appointments/book-modal';
-import { cn } from '@/lib/utils';
+import { cn, formatDentist } from '@/lib/utils';
 
 // ── Status color helpers ──────────────────────────────────────────────────────
 const STATUS_BG: Record<string, string> = {
@@ -145,16 +145,14 @@ function ApptDetailPanel({
           </div>
           <div className="flex items-center gap-2">
             <Stethoscope className="w-3.5 h-3.5 text-slate-400" />
-            Dr. {appt.dentist?.fullName}
+            {formatDentist(appt.dentist?.fullName)}
           </div>
           <div className="flex items-center gap-2">
             <User className="w-3.5 h-3.5 text-slate-400" />
             {appt.type?.replace(/_/g, ' ')}
           </div>
         </div>
-        <Badge variant={statusVariant(appt.status)} className="capitalize">
-          {appt.status?.replace(/_/g, ' ')}
-        </Badge>
+        <StatusBadge status={appt.status} />
         <div className="pt-1 flex gap-2">
           {appt.status === 'scheduled' && (
             <>
@@ -181,6 +179,22 @@ function ApptDetailPanel({
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
+/** Row actions for an appointment (always visible: no hover-only controls). */
+function ApptActions({ appt, onStatus }: { appt: any; onStatus: (id: string, status: string) => void }) {
+  if (appt.status === 'scheduled') {
+    return (
+      <div className="flex items-center gap-1.5">
+        <Button size="sm" className="h-8 px-2.5 text-xs" onClick={() => onStatus(appt.id, 'in_progress')}>Start</Button>
+        <Button size="sm" variant="outline" className="h-8 border-destructive/40 px-2.5 text-xs text-destructive" onClick={() => onStatus(appt.id, 'cancelled')}>Cancel</Button>
+      </div>
+    );
+  }
+  if (appt.status === 'in_progress') {
+    return <Button size="sm" variant="success" className="h-8 px-2.5 text-xs" onClick={() => onStatus(appt.id, 'completed')}>Complete</Button>;
+  }
+  return null;
+}
+
 export default function AppointmentsPage() {
   const qc = useQueryClient();
   const [view, setView] = useState<'list' | 'week'>('list');
@@ -240,8 +254,8 @@ export default function AppointmentsPage() {
         title="Appointments"
         subtitle="Manage your clinic schedule"
         actions={
-          <Button size="sm" onClick={() => setShowBook(true)}>
-            <Plus className="w-3.5 h-3.5" />
+          <Button size="sm" onClick={() => setShowBook(true)} aria-label="New appointment">
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
             New Appointment
           </Button>
         }
@@ -353,6 +367,40 @@ export default function AppointmentsPage() {
         {/* ── List view ─────────────────────────────────────────────────── */}
         {view === 'list' && (
           <Card className="overflow-hidden">
+            {/* Mobile agenda: stacked cards instead of a wide table */}
+            <div className="md:hidden" aria-label="Appointment agenda">
+              {isLoading && Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="space-y-2 border-b border-border p-4"><Skeleton className="h-4 w-1/3" /><Skeleton className="h-4 w-2/3" /></div>
+              ))}
+              {isError && <div className="p-4"><ErrorState title="Could not load appointments" error={error} onRetry={() => refetch()} retrying={isFetching} compact /></div>}
+              {!isLoading && !isError && (dayData?.items?.length ?? 0) === 0 && (
+                <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-muted-foreground">
+                  <Calendar className="h-10 w-10" aria-hidden="true" />
+                  <p className="text-sm font-medium">No appointments{search ? ' matching your search' : ' for this day'}</p>
+                  <Button size="sm" variant="outline" onClick={() => setShowBook(true)} className="mt-1"><Plus className="w-3.5 h-3.5" /> Book one</Button>
+                </div>
+              )}
+              <ol className="divide-y divide-border">
+                {dayData?.items?.map((a: any) => (
+                  <li key={a.id} className="flex gap-3 p-4">
+                    <div className="w-14 shrink-0 text-right" data-numeric>
+                      <p className="text-sm font-semibold text-foreground">{a.startTime?.slice(0, 5)}</p>
+                      <p className="text-xs text-muted-foreground">{a.endTime?.slice(0, 5)}</p>
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1.5 border-l-2 border-primary/40 pl-3">
+                      <p className="truncate text-sm font-medium text-foreground">{a.patient?.fullName}</p>
+                      <p className="truncate text-xs capitalize text-muted-foreground">{a.type?.replace(/_/g, ' ')}{a.dentist?.fullName ? ` · ${formatDentist(a.dentist.fullName)}` : ''}</p>
+                      <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                        <StatusBadge status={a.status} />
+                        <ApptActions appt={a} onStatus={(id, status) => updateStatus.mutate({ id, status })} />
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -411,42 +459,19 @@ export default function AppointmentsPage() {
                       {a.type?.replace(/_/g, ' ')}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell text-sm text-slate-600">
-                      Dr. {a.dentist?.fullName}
+                      {formatDentist(a.dentist?.fullName)}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(a.status)} className="capitalize">
-                        {a.status?.replace(/_/g, ' ')}
-                      </Badge>
+                      <StatusBadge status={a.status} />
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {a.status === 'scheduled' && (
-                          <>
-                            <Button size="sm" className="h-7 text-xs px-2"
-                              onClick={() => updateStatus.mutate({ id: a.id, status: 'in_progress' })}>
-                              Start
-                            </Button>
-                            <Button size="sm" variant="outline" className="h-7 text-xs px-2 text-red-500 hover:text-red-600 border-red-200"
-                              onClick={() => updateStatus.mutate({ id: a.id, status: 'cancelled' })}>
-                              Cancel
-                            </Button>
-                          </>
-                        )}
-                        {a.status === 'in_progress' && (
-                          <Button size="sm" variant="success" className="h-7 text-xs px-2"
-                            onClick={() => updateStatus.mutate({ id: a.id, status: 'completed' })}>
-                            Complete
-                          </Button>
-                        )}
-                        {(a.status === 'completed' || a.status === 'cancelled') && (
-                          <span className="text-xs text-slate-300">—</span>
-                        )}
-                      </div>
+                      <ApptActions appt={a} onStatus={(id, status) => updateStatus.mutate({ id, status })} />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            </div>
 
             {(dayData?.total ?? 0) > 0 && (
               <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50/50">
