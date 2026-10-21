@@ -1,6 +1,8 @@
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { ErrorState } from '@/components/ui/error-state';
+import { StaleNotice } from '@/components/ui/query-boundary';
+import { isStale } from '@/lib/query-state';
 import { analyticsApi, appointmentsApi } from '@/lib/api';
 import { RevenueTrendCard, useRevenueAccess } from '@/components/analytics/RevenueTrendCard';
 import { Header } from '@/components/layout/header';
@@ -91,6 +93,11 @@ export default function DashboardPage() {
   const { data: revenueAccess } = useRevenueAccess();
   // The API removes revenue/outstanding for unauthorised staff and flags it; hide those cards instead of showing ₹0
   const moneyHidden = !!stats?.financialsRestricted;
+  // A failed request is an ERROR, never zero: with no data the KPI values are "—" and sub-figures are omitted; if a refresh fails
+  // while earlier data is on screen, keep those figures and show the stale notice instead.
+  const statsFailed = statsError && stats === undefined;
+  const statsStale = isStale({ isError: statsError, data: stats });
+  const DASH = '—';
   const showRevenueTrend = !!revenueAccess?.canView && !!revenueAccess?.showOnDashboard;
   const { data: procedures } = useQuery({
     queryKey: ['top-procedures'],
@@ -117,9 +124,10 @@ export default function DashboardPage() {
       />
 
       <div className="page-content">
-        {statsError && (
+        {statsFailed && (
           <ErrorState title="Could not load the dashboard figures" error={statsErr} onRetry={() => refetchStats()} retrying={statsFetching} compact />
         )}
+        {statsStale && <StaleNotice onRetry={() => { void refetchStats(); }} retrying={statsFetching} />}
         {/* ── KPI row ──────────────────────────────────────────────────── */}
         <div className={`grid grid-cols-2 gap-3 md:gap-4 ${moneyHidden ? 'xl:grid-cols-2' : 'xl:grid-cols-4'}`}>
           {statsLoading ? (
@@ -130,32 +138,32 @@ export default function DashboardPage() {
             <>
               <KpiCard
                 title="Today's Appointments"
-                value={String(stats?.today?.appointments ?? 0)}
-                subtitle={`${stats?.today?.completed ?? 0} completed · ${stats?.today?.pending ?? 0} pending`}
+                value={statsFailed ? DASH : String(stats?.today?.appointments ?? 0)}
+                subtitle={statsFailed ? undefined : `${stats?.today?.completed ?? 0} completed · ${stats?.today?.pending ?? 0} pending`}
                 icon={Calendar} color="bg-blue-500"
-                trend={stats?.thisMonth?.appointmentGrowth}
+                trend={statsFailed ? undefined : stats?.thisMonth?.appointmentGrowth}
               />
               {!moneyHidden && (
               <KpiCard
                 title="This Month Revenue"
-                value={formatCurrency(stats?.thisMonth?.revenue ?? 0)}
-                subtitle="Net collections"
+                value={statsFailed ? DASH : formatCurrency(stats?.thisMonth?.revenue ?? 0)}
+                subtitle={statsFailed ? undefined : 'Net collections'}
                 icon={DollarSign} color="bg-emerald-500"
-                trend={stats?.thisMonth?.revenueMoMPercent}
+                trend={statsFailed ? undefined : stats?.thisMonth?.revenueMoMPercent}
               />
               )}
               <KpiCard
                 title="Total Patients"
-                value={(stats?.totals?.patients ?? 0).toLocaleString('en-IN')}
-                subtitle={`+${stats?.thisMonth?.newPatients ?? 0} new this month`}
+                value={statsFailed ? DASH : (stats?.totals?.patients ?? 0).toLocaleString('en-IN')}
+                subtitle={statsFailed ? undefined : `+${stats?.thisMonth?.newPatients ?? 0} new this month`}
                 icon={Users} color="bg-purple-500"
-                trend={stats?.thisMonth?.patientGrowth}
+                trend={statsFailed ? undefined : stats?.thisMonth?.patientGrowth}
               />
               {!moneyHidden && (
                 <KpiCard
                   title="Outstanding"
-                  value={formatCurrency(stats?.totals?.outstandingAmount ?? 0)}
-                  subtitle={`${stats?.totals?.pendingInvoices ?? 0} pending invoices`}
+                  value={statsFailed ? DASH : formatCurrency(stats?.totals?.outstandingAmount ?? 0)}
+                  subtitle={statsFailed ? undefined : `${stats?.totals?.pendingInvoices ?? 0} pending invoices`}
                   icon={AlertCircle} color="bg-orange-500"
                 />
               )}
