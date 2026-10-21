@@ -67,6 +67,7 @@ const config: Config = {
         // Brand
         teal: { 50: '#F0FDFA', 500: '#14B8A6', 600: '#0D9488' },
         surface: 'hsl(var(--surface))',
+        'brand-text': 'hsl(var(--brand-text))',
         sidebar: {
           DEFAULT:    'hsl(var(--sidebar))',
           foreground: 'hsl(var(--sidebar-foreground))',

@@ -1,0 +1,155 @@
+/* Accent presets: re-colour primary actions, links, focus ring, selected navigation and the legacy blue-* scale.
+   Never defines success / warning / info / destructive: status colours stay semantic.
+   Not applied in High Contrast (lib/theme.ts accentApplies + the :not() guard below). Contrast is enforced by src/__tests__/appearance.test.ts. */
+
+:root[data-accent='blue']:not(.dark):not([data-theme='contrast']) {
+  --primary: 221 83% 47%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 221 83% 47%;
+  --brand-text: 221 83% 40%;
+  --sidebar-active: 221 83% 72%;
+  --brand-50: 221 83% 96%;
+  --brand-100: 221 83% 92%;
+  --brand-200: 221 83% 85%;
+  --brand-300: 221 83% 74%;
+  --brand-400: 221 83% 60%;
+  --brand-500: 221 83% 55%;
+  --brand-600: 221 83% 47%;
+  --brand-700: 221 83% 40%;
+  --brand-800: 221 83% 33%;
+  --brand-900: 221 83% 27%;
+  --brand-950: 221 83% 22%;
+}
+
+:root.dark[data-accent='blue']:not([data-theme='contrast']) {
+  --primary: 217 91% 64%;
+  --primary-foreground: 222 47% 8%;
+  --ring: 217 91% 70%;
+  --brand-text: 217 100% 80%;
+  --sidebar-active: 217 91% 66%;
+  --brand-50: 217 91% 14%;
+  --brand-100: 217 91% 18%;
+  --brand-200: 217 91% 24%;
+  --brand-300: 217 91% 32%;
+  --brand-400: 217 91% 44%;
+  --brand-500: 217 91% 52%;
+  --brand-600: 217 91% 46%;
+  --brand-700: 217 91% 40%;
+  --brand-800: 217 91% 34%;
+  --brand-900: 217 91% 28%;
+  --brand-950: 217 91% 20%;
+}
+
+:root[data-accent='teal']:not(.dark):not([data-theme='contrast']) {
+  --primary: 173 80% 26%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 173 80% 26%;
+  --brand-text: 173 80% 19%;
+  --sidebar-active: 173 80% 72%;
+  --brand-50: 173 80% 96%;
+  --brand-100: 173 80% 92%;
+  --brand-200: 173 80% 85%;
+  --brand-300: 173 80% 74%;
+  --brand-400: 173 80% 60%;
+  --brand-500: 173 80% 34%;
+  --brand-600: 173 80% 26%;
+  --brand-700: 173 80% 19%;
+  --brand-800: 173 80% 12%;
+  --brand-900: 173 80% 7%;
+  --brand-950: 173 80% 4%;
+}
+
+:root.dark[data-accent='teal']:not([data-theme='contrast']) {
+  --primary: 173 70% 48%;
+  --primary-foreground: 222 47% 8%;
+  --ring: 173 70% 54%;
+  --brand-text: 173 80% 80%;
+  --sidebar-active: 173 70% 66%;
+  --brand-50: 173 70% 10%;
+  --brand-100: 173 70% 14%;
+  --brand-200: 173 70% 18%;
+  --brand-300: 173 70% 22%;
+  --brand-400: 173 70% 30%;
+  --brand-500: 173 70% 32%;
+  --brand-600: 173 70% 28%;
+  --brand-700: 173 70% 24%;
+  --brand-800: 173 70% 20%;
+  --brand-900: 173 70% 16%;
+  --brand-950: 173 70% 12%;
+}
+
+:root[data-accent='sage']:not(.dark):not([data-theme='contrast']) {
+  --primary: 150 36% 28%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 150 36% 28%;
+  --brand-text: 150 36% 21%;
+  --sidebar-active: 150 36% 72%;
+  --brand-50: 150 36% 96%;
+  --brand-100: 150 36% 92%;
+  --brand-200: 150 36% 85%;
+  --brand-300: 150 36% 74%;
+  --brand-400: 150 36% 60%;
+  --brand-500: 150 36% 36%;
+  --brand-600: 150 36% 28%;
+  --brand-700: 150 36% 21%;
+  --brand-800: 150 36% 14%;
+  --brand-900: 150 36% 8%;
+  --brand-950: 150 36% 4%;
+}
+
+:root.dark[data-accent='sage']:not([data-theme='contrast']) {
+  --primary: 150 40% 58%;
+  --primary-foreground: 222 47% 8%;
+  --ring: 150 40% 64%;
+  --brand-text: 150 50% 80%;
+  --sidebar-active: 150 40% 66%;
+  --brand-50: 150 40% 10%;
+  --brand-100: 150 40% 14%;
+  --brand-200: 150 40% 18%;
+  --brand-300: 150 40% 24%;
+  --brand-400: 150 40% 34%;
+  --brand-500: 150 40% 36%;
+  --brand-600: 150 40% 32%;
+  --brand-700: 150 40% 28%;
+  --brand-800: 150 40% 24%;
+  --brand-900: 150 40% 20%;
+  --brand-950: 150 40% 14%;
+}
+
+:root[data-accent='violet']:not(.dark):not([data-theme='contrast']) {
+  --primary: 262 55% 45%;
+  --primary-foreground: 0 0% 100%;
+  --ring: 262 55% 45%;
+  --brand-text: 262 55% 38%;
+  --sidebar-active: 262 55% 72%;
+  --brand-50: 262 55% 96%;
+  --brand-100: 262 55% 92%;
+  --brand-200: 262 55% 85%;
+  --brand-300: 262 55% 74%;
+  --brand-400: 262 55% 60%;
+  --brand-500: 262 55% 53%;
+  --brand-600: 262 55% 45%;
+  --brand-700: 262 55% 38%;
+  --brand-800: 262 55% 31%;
+  --brand-900: 262 55% 25%;
+  --brand-950: 262 55% 20%;
+}
+
+:root.dark[data-accent='violet']:not([data-theme='contrast']) {
+  --primary: 262 85% 74%;
+  --primary-foreground: 222 47% 8%;
+  --ring: 262 85% 80%;
+  --brand-text: 262 95% 80%;
+  --sidebar-active: 262 85% 66%;
+  --brand-50: 262 85% 14%;
+  --brand-100: 262 85% 18%;
+  --brand-200: 262 85% 24%;
+  --brand-300: 262 85% 32%;
+  --brand-400: 262 85% 44%;
+  --brand-500: 262 85% 52%;
+  --brand-600: 262 85% 46%;
+  --brand-700: 262 85% 40%;
+  --brand-800: 262 85% 34%;
+  --brand-900: 262 85% 28%;
+  --brand-950: 262 85% 20%;
+}

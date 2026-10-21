@@ -15,7 +15,7 @@ import {
   Building2, Clock, MessageCircle, Users, Shield, Save, Eye, EyeOff, Palette,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ThemeSelector } from '@/components/layout/theme-selector';
+import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { useAuth } from '@/lib/auth';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -97,6 +97,14 @@ export default function SettingsPage() {
   const setField = (setter: any, field: string, val: string) =>
     setter((prev: any) => ({ ...(prev ?? {}), [field]: val }));
 
+  // Appearance is a local, per-browser preference: it never depends on the clinic profile request, so it stays
+  // available while that request is loading or has failed.
+  const appearance = (
+    <Section icon={Palette} title="Appearance & Personalisation">
+      <AppearanceSettings />
+    </Section>
+  );
+
   if (isLoading) return (
     <div>
       <Header title="Settings" subtitle="Clinic configuration" />
@@ -104,6 +112,7 @@ export default function SettingsPage() {
         {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i}><CardContent className="p-5"><Skeleton className="h-32" /></CardContent></Card>
         ))}
+        {appearance}
       </div>
     </div>
   );
@@ -117,6 +126,7 @@ export default function SettingsPage() {
         <Card><CardContent>
           <ErrorState title="Could not load the clinic settings" error={error} onRetry={() => { void refetch(); }} retrying={isFetching} />
         </CardContent></Card>
+        {appearance}
       </div>
     </div>
   );
@@ -133,13 +143,7 @@ export default function SettingsPage() {
           <span className="text-xs text-slate-400">{data?.clinicName}</span>
         </div>
 
-        {/* Appearance: per-browser preference (stored locally), not clinic data */}
-        <Section icon={Palette} title="Appearance">
-          <p className="mb-3 text-sm text-muted-foreground">
-            Choose a colour theme. It applies immediately and is remembered on this device.
-          </p>
-          <ThemeSelector />
-        </Section>
+        {appearance}
 
         {/* Clinic Profile */}
         <Section icon={Building2} title="Clinic Profile">

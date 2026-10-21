@@ -43,8 +43,19 @@ Edit `src/styles/tokens.css`, then run `npx jest theme` in `apps/web`: `theme.te
 - Toasts follow the active theme (`ThemedToaster`).
 - Motion: transitions are short and the global `prefers-reduced-motion` rule disables them.
 
+## Appearance & Personalisation (Settings)
+
+- **Mode vs theme:** the stored `dentalease-theme` value is unchanged (one of the seven theme ids, or absent = System). The Light / Dark / System "mode" control is another view of the same value: Light = `light`, Dark = `dark`, System = absent. Choosing Ocean Blue, Mint & Teal, Lavender, Warm Sand or High Contrast selects that theme and shows "a custom theme is active" next to the mode control. No theme id was renamed, removed or duplicated.
+- **Accent presets** (`styles/accents.css`, `dentalease-prefs.accent`): Clinical Blue, Dental Teal, Sage Green, Professional Violet, or "Theme default". Precedence: default = the theme's own colours; any preset re-colours `--primary`, `--ring`, `--brand-*` (so legacy `blue-*` classes follow), `--brand-text` and `--sidebar-active` in every theme **except High Contrast**, where it is ignored and the choice is kept for other themes. Light-family and Dark have separate values so contrast holds in both. Success, warning, info and destructive tokens are never defined by an accent (tested).
+- **Text size** (`data-text-size="large"` on `<html>`): root font size 112.5%. Only rem-based sizes scale.
+- **Reduced motion** (`data-motion="reduce"`): explicit "Always reduce"; the default follows `prefers-reduced-motion`. Covers CSS animations and transitions only.
+- **High Contrast:** a switch that selects the existing High Contrast theme (7:1 text, thicker 3px focus ring). Not an overlay on other themes.
+- **State and persistence:** `lib/use-theme.ts` is a shared store (`useSyncExternalStore`): the header menu, command palette and Settings page update together; OS theme changes and other tabs (storage events) are followed. Preferences are validated per field, so invalid or obsolete stored values fall back to defaults. The inline `<head>` script applies theme, accent, text size and motion before first paint.
+- **Not done:** cross-device or per-account sync. That needs a new API endpoint/table, which was not approved. Preferences are per browser.
+- **Tailwind note:** `tailwind.config.ts` changes (for example new colour names) need a dev-server restart to take effect.
+
 ## How it was verified (2026-10-21)
 
-- Automated: `apps/web` `npm test` (103 tests, includes theme logic, init-script simulation, contrast from the real tokens, selector and status-badge rendering, themed empty/error states), `tsc --noEmit`, production `next build` with `NEXT_DIST_DIR=.next-build` and `NODE_ENV=production`.
+- Automated: `apps/web` `npm test` (164 tests, includes theme logic, init-script simulation, contrast from the real tokens, selector and status-badge rendering, themed empty/error states), `tsc --noEmit`, production `next build` with `NEXT_DIST_DIR=.next-build` and `NODE_ENV=production`.
 - Real browser (Chromium pane, disposable PostgreSQL + Redis + API + dev server on ports 55432 / 56379 / 3011 / 3100, demo data only): theme switching and persistence, a rendered text-contrast scan of computed colours against effective backgrounds (0 failures in 7 themes × 7 pages), horizontal-overflow checks at 320, 375, 768 (nine pages), 1024 and 1440 (five pages), mobile drawer, theme menu, command palette.
 - Not covered: axe/screen-reader testing, real devices and touch, login/register, `/pay`, patient sub-pages and modals at 320, WhatsApp and clinic pages in the contrast scan. See `docs/PROJECT_FEATURE_STATUS.md` rows L8–L10.

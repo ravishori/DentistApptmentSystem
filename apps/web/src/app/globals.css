@@ -1,4 +1,5 @@
 @import '../styles/tokens.css';
+@import '../styles/accents.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -57,6 +58,7 @@
   ::-webkit-scrollbar-thumb { background: hsl(var(--slate-300)); border-radius: 10px; }
   ::-webkit-scrollbar-thumb:hover { background: hsl(var(--slate-400)); }
 
+  /* Reduced motion: the device preference, or the explicit "Always reduce" setting (data-motion on <html>) */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.01ms !important;
@@ -65,6 +67,18 @@
       scroll-behavior: auto !important;
     }
   }
+  [data-motion='reduce'] *, [data-motion='reduce'] *::before, [data-motion='reduce'] *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Larger text: everything sized in rem scales with the root. Fixed px sizes (a few dense labels) do not. */
+  html[data-text-size='large'] { font-size: 112.5%; }
+
+  /* High Contrast keeps a heavier, unmistakable focus indicator */
+  [data-theme='contrast'] :focus-visible { outline-width: 3px; outline-offset: 3px; }
 }
 
 /* ── Component classes (legacy helpers still used by pages — now token based) ─ */

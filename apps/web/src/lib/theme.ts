@@ -66,10 +66,86 @@ export function storeChoice(storage: Pick<Storage, 'setItem' | 'removeItem'> | u
   }
 }
 
+// ── Personalisation: accent, text size, motion ───────────────────────────────
+// Stored separately from the theme (`dentalease-prefs`, JSON) so the existing `dentalease-theme` value keeps its meaning.
+export const PREFS_STORAGE_KEY = 'dentalease-prefs';
+
+export const ACCENTS = [
+  { id: 'default', label: 'Theme default', description: "The selected theme's own colour", swatch: '' },
+  { id: 'blue', label: 'Clinical Blue', description: 'Calm, familiar blue', swatch: '221 83% 47%' },
+  { id: 'teal', label: 'Dental Teal', description: 'Fresh teal', swatch: '173 80% 26%' },
+  { id: 'sage', label: 'Sage Green', description: 'Soft, natural green', swatch: '150 36% 28%' },
+  { id: 'violet', label: 'Professional Violet', description: 'Measured violet', swatch: '262 55% 45%' },
+] as const;
+export type AccentId = (typeof ACCENTS)[number]['id'];
+
+export const TEXT_SIZES = [
+  { id: 'default', label: 'Default', description: 'Standard text (16px base)' },
+  { id: 'large', label: 'Larger', description: 'About 12% larger text' },
+] as const;
+export type TextSizeId = (typeof TEXT_SIZES)[number]['id'];
+
+export const MOTION_MODES = [
+  { id: 'system', label: 'Follow my device', description: 'Reduce motion only if your device asks for it' },
+  { id: 'reduce', label: 'Always reduce', description: 'Turn off animations and transitions' },
+] as const;
+export type MotionId = (typeof MOTION_MODES)[number]['id'];
+
+export interface Prefs { accent: AccentId; textSize: TextSizeId; motion: MotionId }
+export const DEFAULT_PREFS: Prefs = { accent: 'default', textSize: 'default', motion: 'system' };
+
+const oneOf = <T extends { id: string }>(list: readonly T[], v: unknown, fallback: T['id']): T['id'] =>
+  list.some((x) => x.id === v) ? (v as T['id']) : fallback;
+
+/** Parses a stored value; anything invalid, missing or obsolete falls back per field. */
+export function parsePrefs(raw: string | null | undefined): Prefs {
+  let o: any = null;
+  try { o = raw ? JSON.parse(raw) : null; } catch { o = null; }
+  if (!o || typeof o !== 'object') return { ...DEFAULT_PREFS };
+  return {
+    accent: oneOf(ACCENTS, o.accent, 'default') as AccentId,
+    textSize: oneOf(TEXT_SIZES, o.textSize, 'default') as TextSizeId,
+    motion: oneOf(MOTION_MODES, o.motion, 'system') as MotionId,
+  };
+}
+
+export function readStoredPrefs(storage: Pick<Storage, 'getItem'> | undefined): Prefs {
+  try { return parsePrefs(storage?.getItem(PREFS_STORAGE_KEY)); } catch { return { ...DEFAULT_PREFS }; }
+}
+
+/** Only non-default values are stored; all defaults clears the key. */
+export function storePrefs(storage: Pick<Storage, 'setItem' | 'removeItem'> | undefined, prefs: Prefs): void {
+  try {
+    const isDefault = prefs.accent === 'default' && prefs.textSize === 'default' && prefs.motion === 'system';
+    if (isDefault) storage?.removeItem(PREFS_STORAGE_KEY);
+    else storage?.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
+  } catch { /* storage unavailable: applies for this page session only */ }
+}
+
+type Root = { setAttribute(n: string, v: string): void; removeAttribute(n: string): void };
+
+/**
+ * Accent precedence: "default" = the theme's own colours. A chosen accent re-colours primary actions, links, focus ring and
+ * selected navigation in every theme EXCEPT High Contrast, whose palette is fixed for accessibility (accent is ignored there).
+ * Status colours (success, warning, error, info) are never touched by an accent.
+ */
+export function accentApplies(theme: ThemeId): boolean {
+  return theme !== 'contrast';
+}
+
+export function applyPrefs(prefs: Prefs, theme: ThemeId, root: Root): void {
+  if (prefs.accent !== 'default' && accentApplies(theme)) root.setAttribute('data-accent', prefs.accent);
+  else root.removeAttribute('data-accent');
+  if (prefs.textSize !== 'default') root.setAttribute('data-text-size', prefs.textSize);
+  else root.removeAttribute('data-text-size');
+  if (prefs.motion === 'reduce') root.setAttribute('data-motion', 'reduce');
+  else root.removeAttribute('data-motion');
+}
+
 /**
  * Dependency-free script inlined in <head>; runs before first paint to avoid a theme flash.
  * Built from the same constants as the functions above (exercised by tests via `new Function`).
  */
 export const THEME_INIT_SCRIPT = `(function(){try{var ids=${JSON.stringify(THEMES.map((t) => t.id))};var dark=${JSON.stringify(
   THEMES.filter((t) => t.dark).map((t) => t.id),
-)};var s=null;try{s=localStorage.getItem('${THEME_STORAGE_KEY}')}catch(e){}var t=ids.indexOf(s)>-1?s:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var r=document.documentElement;r.setAttribute('data-theme',t);r.classList.toggle('dark',dark.indexOf(t)>-1);}catch(e){}})();`;
+)};var acc=${JSON.stringify(ACCENTS.map((a) => a.id))};var sz=${JSON.stringify(TEXT_SIZES.map((a) => a.id))};var s=null,p=null;try{s=localStorage.getItem('${THEME_STORAGE_KEY}');p=JSON.parse(localStorage.getItem('${PREFS_STORAGE_KEY}')||'null')}catch(e){}var t=ids.indexOf(s)>-1?s:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');var r=document.documentElement;r.setAttribute('data-theme',t);r.classList.toggle('dark',dark.indexOf(t)>-1);if(p&&typeof p==='object'){if(p.accent&&p.accent!=='default'&&acc.indexOf(p.accent)>-1&&t!=='contrast')r.setAttribute('data-accent',p.accent);if(p.textSize&&p.textSize!=='default'&&sz.indexOf(p.textSize)>-1)r.setAttribute('data-text-size',p.textSize);if(p.motion==='reduce')r.setAttribute('data-motion','reduce');}}catch(e){}})();`;

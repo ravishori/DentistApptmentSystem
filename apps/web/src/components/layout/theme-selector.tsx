@@ -1,13 +1,14 @@
 'use client';
+import Link from 'next/link';
 import * as Popover from '@radix-ui/react-popover';
-import { Check, Monitor, Palette } from 'lucide-react';
+import { Monitor, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { ChoiceGroup, type ChoiceOption } from '@/components/ui/choice-group';
 import { THEMES, type ThemeChoice } from '@/lib/theme';
 import { useTheme } from '@/lib/use-theme';
 
 /** Mini preview: rendered inside its own data-theme scope so it always shows that theme's real tokens. */
-function ThemePreview({ id }: { id: string }) {
+export function ThemePreview({ id }: { id: string }) {
   return (
     <span
       data-theme={id}
@@ -28,51 +29,32 @@ function ThemePreview({ id }: { id: string }) {
   );
 }
 
-/** Accessible single-choice group (radio semantics) with a visual preview per theme. */
-export function ThemeSelector({ className }: { className?: string }) {
-  const { choice, setChoice } = useTheme();
-  const options: { id: ThemeChoice; label: string; description: string }[] = [
-    { id: 'system', label: 'System', description: 'Match your device' },
-    ...THEMES.map(({ id, label, description }) => ({ id, label, description })),
-  ];
+export const SystemPreview = () => (
+  <span aria-hidden="true" className="flex h-12 w-full items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
+    <Monitor className="h-5 w-5" />
+  </span>
+);
 
+/** The seven themes (plus, optionally, "System") as a keyboard-navigable radio group with live previews. */
+export function ThemeSelector({ className, includeSystem = true }: { className?: string; includeSystem?: boolean }) {
+  const { choice, setChoice } = useTheme();
+  const options: ChoiceOption[] = [
+    ...(includeSystem ? [{ id: 'system', label: 'System', description: 'Match your device', preview: <SystemPreview /> }] : []),
+    ...THEMES.map(({ id, label, description }) => ({ id, label, description, preview: <ThemePreview id={id} /> })),
+  ];
   return (
-    <div role="radiogroup" aria-label="Colour theme" className={cn('grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4', className)}>
-      {options.map((o) => {
-        const selected = choice === o.id;
-        return (
-          <button
-            key={o.id}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            data-theme-option={o.id}
-            onClick={() => setChoice(o.id)}
-            className={cn(
-              'group relative flex min-h-[44px] flex-col gap-1.5 rounded-lg border bg-card p-2 text-left transition-colors hover:bg-accent',
-              selected ? 'border-primary ring-2 ring-primary' : 'border-border',
-            )}
-          >
-            {o.id === 'system' ? (
-              <span aria-hidden="true" className="flex h-12 w-full items-center justify-center rounded-md border border-border bg-muted text-muted-foreground">
-                <Monitor className="h-5 w-5" />
-              </span>
-            ) : (
-              <ThemePreview id={o.id} />
-            )}
-            <span className="flex items-center justify-between gap-1 text-sm font-medium text-foreground">
-              {o.label}
-              {selected && <Check className="h-4 w-4 text-primary" aria-hidden="true" />}
-            </span>
-            <span className="text-xs text-muted-foreground">{o.description}</span>
-          </button>
-        );
-      })}
-    </div>
+    <ChoiceGroup
+      name="theme"
+      label="Colour theme"
+      value={choice}
+      onChange={(id) => setChoice(id as ThemeChoice)}
+      options={options}
+      className={className ?? 'grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4'}
+    />
   );
 }
 
-/** Header entry point: opens the same selector in a popover. */
+/** Header entry point: opens the same selector in a popover. Full options live in Settings → Appearance. */
 export function ThemeMenu() {
   return (
     <Popover.Root>
@@ -86,10 +68,13 @@ export function ThemeMenu() {
           align="end"
           sideOffset={8}
           collisionPadding={8}
-          className="z-50 w-[min(24rem,calc(100vw-1rem))] rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-popover"
+          className="z-50 max-h-[80vh] w-[min(24rem,calc(100vw-1rem))] overflow-y-auto rounded-xl border border-border bg-popover p-3 text-popover-foreground shadow-popover"
         >
           <p className="mb-2 text-sm font-semibold">Theme</p>
-          <ThemeSelector className="grid-cols-2 sm:grid-cols-2 lg:grid-cols-2" />
+          <ThemeSelector className="grid grid-cols-2 gap-2" />
+          <Link href="/settings" className="mt-3 block text-xs font-medium text-primary underline-offset-2 hover:underline">
+            More appearance and accessibility options
+          </Link>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
