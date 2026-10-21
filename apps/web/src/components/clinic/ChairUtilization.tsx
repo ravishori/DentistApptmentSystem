@@ -1,6 +1,11 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { clinicMgmtApi } from '@/lib/api';
+import { describeApiError } from '@/lib/api-error';
+import { ErrorState } from '@/components/ui/error-state';
+import { StaleNotice } from '@/components/ui/query-boundary';
+import { isStale } from '@/lib/query-state';
 import { Spinner } from '@/components/ui/spinner';
 
 // ── Time grid constants ────────────────────────────────────────────────────────
@@ -34,24 +39,21 @@ interface Props {
 export function ChairUtilization({ date: initDate }: Props) {
   const today = new Date().toISOString().split('T')[0];
   const [date,         setDate]         = useState(initDate ?? today);
-  const [utilization,  setUtilization]  = useState<any[]>([]);
-  const [loading,      setLoading]      = useState(false);
   const [tooltip,      setTooltip]      = useState<any>(null);
   const [showAddChair, setShowAddChair] = useState(false);
   const [newChairName, setNewChairName] = useState('');
   const [newChairNo,   setNewChairNo]   = useState('');
   const [addingChair,  setAddingChair]  = useState(false);
 
-  const load = async (d: string) => {
-    setLoading(true);
-    try { setUtilization(await clinicMgmtApi.chairUtilization(d)); } catch {}
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => { load(date); }, [date]);
+  const q = useQuery({ queryKey: ['chair-utilization', date], queryFn: () => clinicMgmtApi.chairUtilization(date) });
+  const utilization: any[] = q.data ?? [];
+  const loading = q.isLoading;
+  const failed = q.isError && q.data === undefined;
+  const load = (_d: string) => q.refetch();
 
   const handleAddChair = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (addingChair) return;                 // double-submit protection
     setAddingChair(true);
     try {
       await clinicMgmtApi.createChair({ name: newChairName, chairNumber: Number(newChairNo) });
@@ -59,7 +61,7 @@ export function ChairUtilization({ date: initDate }: Props) {
       setNewChairName(''); setNewChairNo('');
       load(date);
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Failed to add chair');
+      alert(describeApiError(err, 'Failed to add chair'));
     } finally {
       setAddingChair(false);
     }
@@ -129,7 +131,12 @@ export function ChairUtilization({ date: initDate }: Props) {
         </div>
       </div>
 
-      {loading ? (
+      {isStale(q) && <StaleNotice onRetry={() => { void q.refetch(); }} retrying={q.isFetching} />}
+      {failed ? (
+        <div className="bg-white rounded-2xl border border-slate-200">
+          <ErrorState title="Could not load chair utilization" error={q.error} onRetry={() => { void q.refetch(); }} retrying={q.isFetching} compact />
+        </div>
+      ) : loading ? (
         <div className="flex items-center justify-center py-20">
           <Spinner className="h-8 w-8 text-primary" label="Loading" />
         </div>

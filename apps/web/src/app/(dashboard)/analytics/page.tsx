@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { ErrorState } from '@/components/ui/error-state';
 import { analyticsApi } from '@/lib/api';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,17 +58,26 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+// A failed request is an ERROR, never an empty result: sections show the error (with reference + retry) instead of zeros,
+// empty charts or "No data yet".
+const failedQ = (q: { isError: boolean; data?: unknown }) => q.isError && q.data === undefined;
+function SectionError({ q, title }: { q: { error?: unknown; refetch?: () => unknown; isFetching?: boolean }; title: string }) {
+  return <ErrorState compact title={title} error={q.error} onRetry={() => { void q.refetch?.(); }} retrying={!!q.isFetching} />;
+}
+
 // ── Reusable sub-components ────────────────────────────────────────────────────
 
 function KpiCard({
-  label, value, subValue, change, icon: Icon, color, loading,
+  label, value: valueProp, subValue, change, icon: Icon, color, loading, unavailable,
 }: {
   label: string; value: string; subValue?: string;
-  change?: number; icon: React.ElementType; color: string; loading?: boolean;
+  change?: number; icon: React.ElementType; color: string; loading?: boolean; unavailable?: boolean;
 }) {
   if (loading) return (
     <Card><CardContent className="p-5"><Skeleton className="h-[72px]" /></CardContent></Card>
   );
+  const value = unavailable ? '—' : valueProp;
+  if (unavailable) { subValue = undefined; change = undefined; }   // a failed load must not leave plausible-looking sub-figures such as "Today: 0"
   const up = (change ?? 0) >= 0;
   return (
     <Card className="overflow-hidden">
@@ -140,43 +150,49 @@ const ChartTip = ({ active, payload, label, currency }: any) => {
 // ── OVERVIEW TAB ───────────────────────────────────────────────────────────────
 
 function OverviewTab({ trendCount }: { trendCount: number }) {
-  const { data: stats, isLoading } = useQuery({
+  const statsQ = useQuery({
     queryKey: ['analytics-dashboard'],
     queryFn:  analyticsApi.dashboard,
   });
-  const { data: trends } = useQuery({
+  const stats = statsQ.data;
+  const isLoading = statsQ.isLoading;
+  const trendsQ = useQuery({
     queryKey: ['analytics-trends', 'monthly', trendCount],
     queryFn:  () => analyticsApi.trends('monthly', trendCount),
   });
-  const { data: funnel } = useQuery({
+  const trends = trendsQ.data;
+  const funnelQ = useQuery({
     queryKey: ['analytics-funnel'],
     queryFn:  () => analyticsApi.conversionFunnel(3),
   });
-  const { data: dentists } = useQuery({
+  const funnel = funnelQ.data;
+  const dentistsQ = useQuery({
     queryKey: ['analytics-dentists'],
     queryFn:  () => analyticsApi.dentistPerformance(3),
   });
+  const dentists = dentistsQ.data;
 
   const noShowRate = stats?.noShowRate ?? 0;
 
   return (
     <div className="space-y-6">
+      {failedQ(statsQ) && <SectionError q={statsQ} title="Could not load the key figures" />}
       {/* KPI row */}
       <div className={`grid grid-cols-2 gap-3 md:gap-4 ${stats?.financialsRestricted ? 'xl:grid-cols-2' : 'xl:grid-cols-4'}`}>
-        {!stats?.financialsRestricted && <KpiCard loading={isLoading} label="Month Revenue" icon={DollarSign} color="bg-emerald-500"
+        {!stats?.financialsRestricted && <KpiCard loading={isLoading} unavailable={failedQ(statsQ)} label="Month Revenue" icon={DollarSign} color="bg-emerald-500"
           value={formatCurrency(stats?.thisMonth?.revenue ?? 0)}
           change={stats?.thisMonth?.revenueMoM}
         />}
-        <KpiCard loading={isLoading} label="Appointments" icon={Calendar} color="bg-blue-500"
+        <KpiCard loading={isLoading} unavailable={failedQ(statsQ)} label="Appointments" icon={Calendar} color="bg-blue-500"
           value={String(stats?.thisMonth?.appointments ?? 0)}
           subValue={`Today: ${stats?.today?.appointments ?? 0}`}
           change={stats?.thisMonth?.appointmentGrowth}
         />
-        <KpiCard loading={isLoading} label="No-Show Rate" icon={AlertTriangle} color="bg-red-500"
+        <KpiCard loading={isLoading} unavailable={failedQ(statsQ)} label="No-Show Rate" icon={AlertTriangle} color="bg-red-500"
           value={`${noShowRate}%`}
           subValue="Last 90 days"
         />
-        {!stats?.financialsRestricted && <KpiCard loading={isLoading} label="Outstanding" icon={Activity} color="bg-orange-500"
+        {!stats?.financialsRestricted && <KpiCard loading={isLoading} unavailable={failedQ(statsQ)} label="Outstanding" icon={Activity} color="bg-orange-500"
           value={formatCurrency(stats?.totals?.outstandingAmount ?? 0)}
         />}
       </div>
@@ -189,7 +205,8 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
         <Card className="xl:col-span-3">
           <CardContent className="p-5">
             <SectionHeader title="Appointments" subtitle="Completed vs no-shows" />
-            <ResponsiveContainer width="100%" height={200}>
+            {failedQ(trendsQ) ? <SectionError q={trendsQ} title="Could not load the appointments chart" /> : (
+<ResponsiveContainer width="100%" height={200}>
               <BarChart data={trends ?? []} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                 <XAxis dataKey="period" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
@@ -200,12 +217,14 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
               </BarChart>
             </ResponsiveContainer>
+)}
           </CardContent>
         </Card>
 
         <Card className="xl:col-span-2">
           <CardContent className="p-5">
             <SectionHeader title="Conversion Funnel" subtitle="Last 3 months" />
+            {failedQ(funnelQ) && <SectionError q={funnelQ} title="Could not load the conversion funnel" />}
             <div className="space-y-2 mt-1">
               {(funnel ?? []).map((stage: any, i: number) => {
                 const colors = [CHART_COLORS.blue, CHART_COLORS.indigo, CHART_COLORS.purple, CHART_COLORS.green];
@@ -238,7 +257,7 @@ function OverviewTab({ trendCount }: { trendCount: number }) {
       <Card>
         <CardContent className="p-5">
           <SectionHeader title="Dentist Performance" subtitle="Last 3 months" />
-          {(!dentists || dentists.length === 0) ? (
+          {failedQ(dentistsQ) ? <SectionError q={dentistsQ} title="Could not load dentist performance" /> : dentistsQ.isLoading ? <Skeleton className="h-24" /> : (!dentists || dentists.length === 0) ? (
             <EmptyState title="No data yet" className="py-8" />
           ) : (
             <div className="space-y-4">
@@ -297,18 +316,21 @@ function FinancialsRestricted({ what }: { what: string }) {
 function RevenueTabContent({ canManage }: { canManage: boolean }) {
   const [months, setMonths] = useState(12);
 
-  const { data: procedures } = useQuery({
+  const proceduresQ = useQuery({
     queryKey: ['analytics-procedures', months],
     queryFn:  () => analyticsApi.revenueByProcedure(months),
   });
-  const { data: trends } = useQuery({
+  const procedures = proceduresQ.data;
+  const trendsQ = useQuery({
     queryKey: ['analytics-trends', 'monthly', months],
     queryFn:  () => analyticsApi.trends('monthly', months),
   });
-  const { data: yearlyTrends } = useQuery({
+  const trends = trendsQ.data;
+  const yearlyTrendsQ = useQuery({
     queryKey: ['analytics-trends', 'yearly'],
     queryFn:  () => analyticsApi.trends('yearly', 3),
   });
+  const yearlyTrends = yearlyTrendsQ.data;
 
   const handleExportCsv = useCallback(async () => {
     const blob = await analyticsApi.exportRevenueCsv(months);
@@ -331,9 +353,9 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
       {/* KPI mini-strip */}
       <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Total Revenue', value: formatCurrency((trends ?? []).reduce((s: number, t: any) => s + (t.revenue ?? 0), 0)) },
-          { label: 'Avg / Month',   value: formatCurrency(trends?.length ? (trends.reduce((s: number, t: any) => s + (t.revenue ?? 0), 0) / trends.length) : 0) },
-          { label: 'Top Procedure', value: procedures?.[0]?.procedure?.replace('_', ' ') ?? '—' },
+          { label: 'Total Revenue', value: failedQ(trendsQ) ? '—' : formatCurrency((trends ?? []).reduce((s: number, t: any) => s + (t.revenue ?? 0), 0)) },
+          { label: 'Avg / Month',   value: failedQ(trendsQ) ? '—' : formatCurrency(trends?.length ? (trends.reduce((s: number, t: any) => s + (t.revenue ?? 0), 0) / trends.length) : 0) },
+          { label: 'Top Procedure', value: failedQ(proceduresQ) ? '—' : procedures?.[0]?.procedure?.replace('_', ' ') ?? '—' },
         ].map(item => (
           <div key={item.label} className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
             <p className="text-xs text-slate-500">{item.label}</p>
@@ -346,7 +368,7 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
       <Card>
         <CardContent className="p-5">
           <SectionHeader title="Revenue per Procedure" subtitle={`Last ${months} months`} />
-          {(!procedures || procedures.length === 0) ? (
+          {failedQ(proceduresQ) ? <SectionError q={proceduresQ} title="Could not load revenue per procedure" /> : proceduresQ.isLoading ? <Skeleton className="h-24" /> : (!procedures || procedures.length === 0) ? (
             <EmptyState title="No completed appointments with invoices yet" className="py-8" />
           ) : (
             <div className="space-y-3">
@@ -379,7 +401,8 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
         <Card>
           <CardContent className="p-5">
             <SectionHeader title="Monthly Revenue" />
-            <ResponsiveContainer width="100%" height={200}>
+            {failedQ(trendsQ) ? <SectionError q={trendsQ} title="Could not load monthly revenue" /> : (
+<ResponsiveContainer width="100%" height={200}>
               <AreaChart data={trends ?? []} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="revGrad2" x1="0" y1="0" x2="0" y2="1">
@@ -396,13 +419,15 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
                   stroke={CHART_COLORS.green} strokeWidth={2} fill="url(#revGrad2)" dot={false} />
               </AreaChart>
             </ResponsiveContainer>
+)}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-5">
             <SectionHeader title="Procedure Mix" subtitle="By revenue" />
-            <ResponsiveContainer width="100%" height={200}>
+            {failedQ(proceduresQ) ? <SectionError q={proceduresQ} title="Could not load the procedure mix" /> : (
+<ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={procedures ?? []} dataKey="totalRevenue" nameKey="procedure"
                   cx="50%" cy="45%" innerRadius={50} outerRadius={75} paddingAngle={3}>
@@ -415,12 +440,13 @@ function RevenueTabContent({ canManage }: { canManage: boolean }) {
                   formatter={(v: string) => v.replace(/_/g, ' ')} />
               </PieChart>
             </ResponsiveContainer>
+)}
           </CardContent>
         </Card>
       </div>
 
       {/* Yearly bar */}
-      {yearlyTrends && yearlyTrends.length > 0 && (
+      {failedQ(yearlyTrendsQ) ? <Card><CardContent className="p-5"><SectionError q={yearlyTrendsQ} title="Could not load year-over-year revenue" /></CardContent></Card> : yearlyTrends && yearlyTrends.length > 0 && (
         <Card>
           <CardContent className="p-5">
             <SectionHeader title="Year-over-Year Revenue" />
@@ -451,14 +477,16 @@ function PatientsTab() {
 }
 
 function PatientsTabContent() {
-  const { data: ltv } = useQuery({
+  const ltvQ = useQuery({
     queryKey: ['analytics-ltv'],
     queryFn:  analyticsApi.patientLtv,
   });
-  const { data: noShow } = useQuery({
+  const ltv = ltvQ.data;
+  const noShowQ = useQuery({
     queryKey: ['analytics-noshow'],
     queryFn:  () => analyticsApi.noShowAnalysis(6),
   });
+  const noShow = noShowQ.data;
 
   const handleExportLtv = useCallback(async () => {
     const blob = await analyticsApi.exportLtvCsv();
@@ -471,12 +499,12 @@ function PatientsTabContent() {
       <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500">Avg Patient LTV</p>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{formatCurrency(ltv?.avgLtv ?? 0)}</p>
+          <p className="text-2xl font-bold text-slate-800 mt-1">{failedQ(ltvQ) ? '—' : formatCurrency(ltv?.avgLtv ?? 0)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500">Top Patient LTV</p>
           <p className="text-2xl font-bold text-purple-700 mt-1">
-            {formatCurrency(ltv?.topPatients?.[0]?.ltv ?? 0)}
+            {failedQ(ltvQ) ? '—' : formatCurrency(ltv?.topPatients?.[0]?.ltv ?? 0)}
           </p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 col-span-2 xl:col-span-1">
@@ -493,7 +521,8 @@ function PatientsTabContent() {
         <Card>
           <CardContent className="p-5">
             <SectionHeader title="LTV Distribution" />
-            <ResponsiveContainer width="100%" height={200}>
+            {failedQ(ltvQ) ? <SectionError q={ltvQ} title="Could not load the LTV distribution" /> : (
+<ResponsiveContainer width="100%" height={200}>
               <BarChart data={ltv?.distribution ?? []} margin={{ top: 5, right: 5, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                 <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
@@ -502,6 +531,7 @@ function PatientsTabContent() {
                 <Bar dataKey="patientCount" name="Patients" fill={CHART_COLORS.purple} radius={[5, 5, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+)}
           </CardContent>
         </Card>
 
@@ -518,7 +548,7 @@ function PatientsTabContent() {
               </button>
             </div>
             <div className="space-y-2 max-h-[210px] overflow-y-auto pr-1">
-              {(ltv?.topPatients ?? []).slice(0, 10).map((p: any, i: number) => (
+              {failedQ(ltvQ) ? <SectionError q={ltvQ} title="Could not load top patients" /> : (ltv?.topPatients ?? []).slice(0, 10).map((p: any, i: number) => (
                 <div key={p.patientId} className="flex items-center gap-3 py-1.5 border-b border-slate-50 last:border-0">
                   <span className="w-5 text-xs font-bold text-slate-400 shrink-0">{i + 1}</span>
                   <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-xs font-bold text-purple-700 shrink-0">
@@ -540,7 +570,8 @@ function PatientsTabContent() {
       <Card>
         <CardContent className="p-5">
           <SectionHeader title="No-Show Rate Trend" subtitle="Monthly — last 6 months" />
-          <ResponsiveContainer width="100%" height={200}>
+          {failedQ(noShowQ) ? <SectionError q={noShowQ} title="Could not load the no-show trend" /> : (
+<ResponsiveContainer width="100%" height={200}>
             <LineChart data={noShow?.monthly ?? []} margin={{ top: 5, right: 5, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
@@ -551,6 +582,7 @@ function PatientsTabContent() {
                 stroke={CHART_COLORS.red} strokeWidth={2} dot={{ r: 4, fill: CHART_COLORS.red }} />
             </LineChart>
           </ResponsiveContainer>
+)}
         </CardContent>
       </Card>
 
@@ -559,7 +591,8 @@ function PatientsTabContent() {
         <Card>
           <CardContent className="p-5">
             <SectionHeader title="No-Shows by Day of Week" />
-            <ResponsiveContainer width="100%" height={180}>
+            {failedQ(noShowQ) ? <SectionError q={noShowQ} title="Could not load no-shows by day" /> : (
+<ResponsiveContainer width="100%" height={180}>
               <BarChart data={noShow?.byDow ?? []} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                 <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
@@ -569,13 +602,14 @@ function PatientsTabContent() {
                 <Bar dataKey="rate" name="No-show %" fill={CHART_COLORS.amber} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
+)}
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-5">
             <SectionHeader title="No-Shows by Doctor" />
-            {(!noShow?.byDentist || noShow.byDentist.length === 0) ? (
+            {failedQ(noShowQ) ? <SectionError q={noShowQ} title="Could not load no-shows by doctor" /> : noShowQ.isLoading ? <Skeleton className="h-24" /> : (!noShow?.byDentist || noShow.byDentist.length === 0) ? (
               <EmptyState title="No data yet" className="py-8" />
             ) : (
               <div className="space-y-3 mt-1">
@@ -607,16 +641,20 @@ function InsightsTab() {
   const { data: access } = useRevenueAccess();
   const canSeeMoney = !!access?.canView;
 
-  const { data: inactive, isLoading: inactiveLoading } = useQuery({
+  const inactiveQ = useQuery({
     queryKey: ['analytics-inactive', inactiveDays],
     queryFn:  () => analyticsApi.inactivePatients(inactiveDays),
   });
-  const { data: highValue, isLoading: hvLoading } = useQuery({
+  const inactive = inactiveQ.data;
+  const inactiveLoading = inactiveQ.isLoading;
+  const highValueQ = useQuery({
     queryKey: ['analytics-highvalue'],
     queryFn:  analyticsApi.highValuePatients,
     enabled:  canSeeMoney,        // the endpoint is 403 for unauthorised staff
     retry:    false,
   });
+  const highValue = highValueQ.data;
+  const hvLoading = highValueQ.isLoading;
 
   const riskBadge = (level: string) => ({
     high:   'bg-red-100 text-red-700',
@@ -670,7 +708,7 @@ function InsightsTab() {
             </select>
           </div>
 
-          {inactiveLoading ? (
+          {failedQ(inactiveQ) ? <SectionError q={inactiveQ} title="Could not load inactive patients" /> : inactiveLoading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
           ) : !inactive?.length ? (
             <EmptyState title="No inactive patients found — great retention!" className="py-8" />
@@ -727,7 +765,7 @@ function InsightsTab() {
             title="High-Value Patients"
             subtitle="Ranked by lifetime spend — top tier for VIP treatment"
           />
-          {hvLoading ? (
+          {failedQ(highValueQ) ? <SectionError q={highValueQ} title="Could not load high-value patients" /> : hvLoading ? (
             <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
           ) : !highValue?.length ? (
             <EmptyState title="No billing data yet" className="py-8" />

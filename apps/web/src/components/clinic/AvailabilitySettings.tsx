@@ -1,6 +1,11 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { clinicMgmtApi } from '@/lib/api';
+import { describeApiError } from '@/lib/api-error';
+import { ErrorState } from '@/components/ui/error-state';
+import { StaleNotice } from '@/components/ui/query-boundary';
+import { isStale } from '@/lib/query-state';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/ui/empty-state';
 
@@ -17,10 +22,7 @@ const DAYS = [
 const SLOT_DURATIONS = [10, 15, 20, 30, 45, 60];
 
 export function AvailabilitySettings() {
-  const [doctors,     setDoctors]     = useState<any[]>([]);
   const [selectedDoc, setSelectedDoc] = useState('');
-  const [rules,       setRules]       = useState<any[]>([]);
-  const [loading,     setLoading]     = useState(false);
   const [showForm,    setShowForm]    = useState(false);
   const [form,        setForm]        = useState({
     dayOfWeek: 'monday', startTime: '09:00', endTime: '17:00', slotMins: 30,
@@ -35,32 +37,25 @@ export function AvailabilitySettings() {
   const [genResult, setGenResult] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
-    clinicMgmtApi.getDoctors().then((docs: any[]) => {
-      setDoctors(docs);
-      if (docs.length) setSelectedDoc(docs[0].id);
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (!selectedDoc) return;
-    setLoading(true);
-    clinicMgmtApi.listAvailabilities(selectedDoc)
-      .then(setRules)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [selectedDoc]);
+  // Loads are queries: a failure is shown as an error with a reference and retry, not as "no rules yet".
+  const doctorsQ = useQuery({ queryKey: ['clinic-doctors'], queryFn: clinicMgmtApi.getDoctors });
+  const doctors: any[] = doctorsQ.data ?? [];
+  useEffect(() => { if (doctors.length && !selectedDoc) setSelectedDoc(doctors[0].id); }, [doctors, selectedDoc]);
+  const rulesQ = useQuery({ queryKey: ['availability-rules', selectedDoc], queryFn: () => clinicMgmtApi.listAvailabilities(selectedDoc), enabled: !!selectedDoc });
+  const rules: any[] = rulesQ.data ?? [];
+  const loading = rulesQ.isLoading;
+  const rulesFailed = rulesQ.isError && rulesQ.data === undefined;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;                      // double-submit protection
     setError(''); setSaving(true);
     try {
       await clinicMgmtApi.createAvailability({ ...form, dentistId: selectedDoc, slotMins: Number(form.slotMins) });
-      const updated = await clinicMgmtApi.listAvailabilities(selectedDoc);
-      setRules(updated);
+      await rulesQ.refetch();
       setShowForm(false);
     } catch (err: any) {
-      setError(err.response?.data?.message ?? 'Failed to save');
+      setError(describeApiError(err, 'Failed to save'));
     } finally {
       setSaving(false);
     }
@@ -68,12 +63,17 @@ export function AvailabilitySettings() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Remove this availability rule?')) return;
-    await clinicMgmtApi.deleteAvailability(id);
-    setRules(prev => prev.filter(r => r.id !== id));
+    try {
+      await clinicMgmtApi.deleteAvailability(id);
+      await rulesQ.refetch();
+    } catch (err) {
+      alert(describeApiError(err, 'Could not remove the rule'));
+    }
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (generating) return;                  // double-submit protection
     setGenerating(true); setGenResult(null);
     try {
       const result = await clinicMgmtApi.generateSlots({
@@ -83,7 +83,7 @@ export function AvailabilitySettings() {
       });
       setGenResult(result);
     } catch (err: any) {
-      alert(err.response?.data?.message ?? 'Generation failed');
+      alert(describeApiError(err, 'Generation failed'));
     } finally {
       setGenerating(false);
     }
@@ -91,6 +91,11 @@ export function AvailabilitySettings() {
 
   return (
     <div className="space-y-6">
+      {doctorsQ.isError && doctorsQ.data === undefined && (
+        <div className="bg-white rounded-2xl border border-slate-200">
+          <ErrorState title="Could not load the doctor list" error={doctorsQ.error} onRetry={() => { void doctorsQ.refetch(); }} retrying={doctorsQ.isFetching} compact />
+        </div>
+      )}
       {/* Doctor selector */}
       <div className="bg-white rounded-2xl border border-slate-200 p-5">
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Doctor</h3>
@@ -168,7 +173,10 @@ export function AvailabilitySettings() {
               </form>
             )}
 
-            {loading ? (
+            {isStale(rulesQ) && <StaleNotice onRetry={() => { void rulesQ.refetch(); }} retrying={rulesQ.isFetching} />}
+            {rulesFailed ? (
+              <ErrorState title="Could not load the availability rules" error={rulesQ.error} onRetry={() => { void rulesQ.refetch(); }} retrying={rulesQ.isFetching} compact />
+            ) : loading ? (
               <div className="flex justify-center py-8"><Spinner className="h-6 w-6 text-primary" label="Loading" /></div>
             ) : rules.length === 0 ? (
               <EmptyState title="No rules yet. Add one to define working hours." className="py-8" />

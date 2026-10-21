@@ -1,6 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryBoundary } from '@/components/ui/query-boundary';
+import { ConversationsEmpty, ConversationsList, toConversationRows } from '@/components/whatsapp/conversations';
+import { describeApiError } from '@/lib/api-error';
 import { whatsappApi } from '@/lib/api';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,13 +82,14 @@ function BroadcastModal({ onClose }: { onClose: () => void }) {
   const [sending, setSending] = useState(false);
 
   const handleSend = async () => {
+    if (sending) return;                // double-submit protection
     setSending(true);
     try {
       await whatsappApi.broadcast({ audience, templateName });
       toast.success('Broadcast campaign queued');
       onClose();
-    } catch {
-      toast.error('Failed to send broadcast');
+    } catch (err) {
+      toast.error(describeApiError(err, 'Failed to send broadcast'));
     } finally {
       setSending(false);
     }
@@ -165,53 +169,28 @@ function BroadcastModal({ onClose }: { onClose: () => void }) {
 
 // ── Conversations stub ─────────────────────────────────────────────────────────
 function ConversationsTab() {
-  const { data, isLoading } = useQuery({
+  const q = useQuery({
     queryKey: ['wa-conversations'],
     queryFn: whatsappApi.conversations,
   });
 
-  if (isLoading) return (
-    <div className="space-y-2">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <Card key={i}><CardContent className="p-4"><Skeleton className="h-12" /></CardContent></Card>
-      ))}
-    </div>
-  );
-
-  if (!data?.length) return (
-    <Card>
-      <CardContent className="py-16 text-center">
-        <MessageCircle className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-        <p className="text-sm font-medium text-slate-500">No active conversations</p>
-        <p className="text-xs text-slate-400 mt-1">Inbound WhatsApp messages from patients appear here</p>
-      </CardContent>
-    </Card>
-  );
-
   return (
-    <div className="space-y-2">
-      {data.map((conv: any) => (
-        <Card key={conv.id} className="cursor-pointer hover:shadow-sm transition-shadow">
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center shrink-0">
-              <MessageCircle className="w-5 h-5 text-green-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-slate-900">{conv.patientName ?? conv.phone}</p>
-              <p className="text-xs text-slate-400 truncate mt-0.5">{conv.lastMessage}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-[10px] text-slate-400">{conv.lastMessageAt}</p>
-              {conv.unread > 0 && (
-                <span className="mt-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] font-bold">
-                  {conv.unread}
-                </span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+    <QueryBoundary
+      query={q}
+      errorTitle="Could not load conversations"
+      compact={false}
+      isEmpty={(d) => toConversationRows(d).length === 0}
+      loading={
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}><CardContent className="p-4"><Skeleton className="h-12" /></CardContent></Card>
+          ))}
+        </div>
+      }
+      empty={<ConversationsEmpty />}
+    >
+      {(d) => <ConversationsList rows={toConversationRows(d)} />}
+    </QueryBoundary>
   );
 }
 
@@ -241,14 +220,10 @@ export default function WhatsappPage() {
               <Zap className="w-4 h-4 text-white" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-emerald-800">Automation Engine Active</p>
+              <p className="text-sm font-semibold text-emerald-800">Automation overview</p>
               <p className="text-xs text-emerald-600 mt-0.5">
-                All flows are running. Messages fire automatically on system events and respect patient opt-in.
+                The standard flows below fire on system events and respect patient opt-in. This page does not monitor live delivery or provider connectivity.
               </p>
-            </div>
-            <div className="ml-auto flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Connected
             </div>
           </CardContent>
         </Card>

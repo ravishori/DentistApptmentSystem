@@ -1,6 +1,10 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { clinicMgmtApi } from '@/lib/api';
+import { ErrorState } from '@/components/ui/error-state';
+import { StaleNotice } from '@/components/ui/query-boundary';
+import { isStale } from '@/lib/query-state';
 import { Spinner } from '@/components/ui/spinner';
 
 const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -43,11 +47,7 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
   const [today]          = useState(() => new Date());
   const [currentDate,    setCurrentDate]    = useState(() => weekStart(new Date()));
   const [mode,           setMode]           = useState<'week' | 'day'>(initMode);
-  const [doctors,        setDoctors]        = useState<any[]>([]);
   const [selectedDoc,    setSelectedDoc]    = useState<string>('all');
-  const [availData,      setAvailData]      = useState<any[]>([]);
-  const [daySchedule,    setDaySchedule]    = useState<any>(null);
-  const [loading,        setLoading]        = useState(false);
   const [expandedSlot,   setExpandedSlot]   = useState<string | null>(null);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentDate, i));
@@ -55,36 +55,20 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
   const toStr    = weekDays[6].toISOString().split('T')[0];
   const dayStr   = (mode === 'day' ? (currentDate) : today).toISOString().split('T')[0];
 
-  useEffect(() => {
-    clinicMgmtApi.getDoctors().then(setDoctors).catch(() => {});
-  }, []);
-
-  const loadWeekData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await clinicMgmtApi.checkAvailability({
-        from: fromStr,
-        to:   toStr,
-        ...(selectedDoc !== 'all' && { dentistId: selectedDoc }),
-      });
-      setAvailData(data);
-    } catch {}
-    finally { setLoading(false); }
-  }, [fromStr, toStr, selectedDoc]);
-
-  const loadDayData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await clinicMgmtApi.getDaySchedule(dayStr);
-      setDaySchedule(data);
-    } catch {}
-    finally { setLoading(false); }
-  }, [dayStr]);
-
-  useEffect(() => {
-    if (mode === 'week') loadWeekData();
-    else                 loadDayData();
-  }, [mode, loadWeekData, loadDayData]);
+  // Every load is a query, so a failed request is an ERROR state (with reference + retry), never an empty calendar.
+  const doctorsQ = useQuery({ queryKey: ['clinic-doctors'], queryFn: clinicMgmtApi.getDoctors });
+  const weekQ = useQuery({
+    queryKey: ['clinic-week', fromStr, toStr, selectedDoc],
+    queryFn: () => clinicMgmtApi.checkAvailability({ from: fromStr, to: toStr, ...(selectedDoc !== 'all' && { dentistId: selectedDoc }) }),
+    enabled: mode === 'week',
+  });
+  const dayQ = useQuery({ queryKey: ['clinic-day', dayStr], queryFn: () => clinicMgmtApi.getDaySchedule(dayStr), enabled: mode === 'day' });
+  const activeQ = mode === 'week' ? weekQ : dayQ;
+  const doctors: any[] = doctorsQ.data ?? [];
+  const availData: any[] = weekQ.data ?? [];
+  const daySchedule: any = dayQ.data ?? null;
+  const loading = activeQ.isLoading;
+  const failed = activeQ.isError && activeQ.data === undefined;
 
   const prev = () => {
     const d = new Date(currentDate);
@@ -119,6 +103,12 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
             <option key={d.id} value={d.id}>{d.fullName}</option>
           ))}
         </select>
+        {doctorsQ.isError && (
+          <span role="alert" className="text-xs text-red-600">
+            Doctor list unavailable.{' '}
+            <button type="button" className="underline" onClick={() => { void doctorsQ.refetch(); }}>Retry</button>
+          </span>
+        )}
 
         {/* Mode toggle */}
         <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
@@ -152,6 +142,13 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
         </div>
       </div>
 
+      {failed && (
+        <div className="bg-white rounded-2xl border border-slate-200">
+          <ErrorState title={mode === 'week' ? 'Could not load the weekly calendar' : 'Could not load the day schedule'} error={activeQ.error} onRetry={() => { void activeQ.refetch(); }} retrying={activeQ.isFetching} compact />
+        </div>
+      )}
+      {isStale(activeQ) && <StaleNotice onRetry={() => { void activeQ.refetch(); }} retrying={activeQ.isFetching} />}
+
       {loading && (
         <div className="flex items-center justify-center py-16">
           <Spinner className="h-8 w-8 text-primary" label="Loading" />
@@ -159,7 +156,7 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
       )}
 
       {/* ── WEEK VIEW ── */}
-      {mode === 'week' && !loading && availData.length > 0 && (
+      {mode === 'week' && !loading && !failed && availData.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
           {/* Header row */}
           <div className="grid border-b border-slate-100" style={{ gridTemplateColumns: `160px repeat(7, 1fr)` }}>
@@ -234,7 +231,7 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
       )}
 
       {/* ── DAY VIEW ── */}
-      {mode === 'day' && !loading && daySchedule && (
+      {mode === 'day' && !loading && !failed && daySchedule && (
         <div className="space-y-4">
           {/* Summary */}
           <div className="grid grid-cols-3 gap-4">
@@ -289,7 +286,7 @@ export function DoctorCalendar({ mode: initMode = 'week' }: Props) {
         </div>
       )}
 
-      {!loading && availData.length === 0 && mode === 'week' && (
+      {!loading && !failed && availData.length === 0 && mode === 'week' && (
         <div className="text-center py-16 text-slate-400">
           <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1}

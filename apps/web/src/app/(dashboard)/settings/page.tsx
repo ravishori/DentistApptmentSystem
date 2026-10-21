@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ErrorState } from '@/components/ui/error-state';
+import { describeApiError } from '@/lib/api-error';
 import { clinicApi } from '@/lib/api';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,7 +42,7 @@ export default function SettingsPage() {
   const { tenant } = useAuth();
   const [showApiKey, setShowApiKey] = useState(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ['clinic-profile'],
     queryFn: clinicApi.getProfile,
   });
@@ -60,11 +62,12 @@ export default function SettingsPage() {
       qc.invalidateQueries({ queryKey: ['clinic-profile'] });
       toast.success('Profile updated');
     },
-    onError: () => toast.error('Failed to save'),
+    onError: (e) => toast.error(describeApiError(e, 'Failed to save')),
   });
 
   const handleProfileSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (updateProfile.isPending) return;           // double-submit protection
     updateProfile.mutate({
       clinicName: profile_?.clinicName,
       phone: profile_?.phone,
@@ -77,11 +80,13 @@ export default function SettingsPage() {
 
   const handleHoursSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (updateProfile.isPending) return;
     updateProfile.mutate({ settings: { workingHours: hours_ } });
   };
 
   const handleWhatsappSave = (e: React.FormEvent) => {
     e.preventDefault();
+    if (updateProfile.isPending) return;
     updateProfile.mutate({
       whatsappNumber: whatsapp_.number,
       ...(whatsapp_.apiKey ? { waApiKey: whatsapp_.apiKey } : {}),
@@ -98,6 +103,19 @@ export default function SettingsPage() {
         {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i}><CardContent className="p-5"><Skeleton className="h-32" /></CardContent></Card>
         ))}
+      </div>
+    </div>
+  );
+
+  // A failed profile load must NOT fall through to the editable form: it would show blank fields that look like real
+  // settings, and saving them would overwrite the clinic's profile with empty values.
+  if (isError && !data) return (
+    <div>
+      <Header title="Settings" subtitle="Clinic configuration" />
+      <div className="page-content max-w-2xl">
+        <Card><CardContent>
+          <ErrorState title="Could not load the clinic settings" error={error} onRetry={() => { void refetch(); }} retrying={isFetching} />
+        </CardContent></Card>
       </div>
     </div>
   );
