@@ -6,6 +6,7 @@ import { TemplateBuilder } from '../templates/template-builder';
 import { BookingFlow } from '../flows/booking.flow';
 import { RescheduleFlow } from '../flows/reschedule.flow';
 import { FollowupFlow } from '../flows/followup.flow';
+import { maskPhone } from '../../../common/observability/redaction';
 
 /**
  * WebhookHandler — single entry point for ALL inbound WhatsApp messages.
@@ -74,7 +75,8 @@ export class WebhookHandler {
       return;
     }
 
-    this.logger.log(`Inbound WA → ${phone} | body="${body}" | button="${buttonId ?? ''}"`);
+    // The message text is free-form patient input (names, symptoms): log its size and the button id only.
+    this.logger.log(`Inbound WA → ${maskPhone(phone)} | bodyLength=${body.length} | button="${buttonId ?? ''}"`);
 
     // Persist raw inbound message
     await this.persistMessage(clinicId, phone, body, buttonId);
@@ -279,7 +281,7 @@ export class WebhookHandler {
       phone,
       `You have been unsubscribed from WhatsApp notifications. Reply *START* anytime to re-subscribe.`,
     );
-    this.logger.log(`Patient opted out of WhatsApp → ${phone}`);
+    this.logger.log(`Patient opted out of WhatsApp → ${maskPhone(phone)}`);
   }
 
   // ── Persist inbound message ───────────────────────────────────────────────

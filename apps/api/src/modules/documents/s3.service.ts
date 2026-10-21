@@ -17,6 +17,8 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
+import { errText } from '../../common/observability/redaction';
+import { sanitizeStack } from '../../common/observability/redaction';
 
 export interface S3UploadResult {
   s3Key:     string;
@@ -77,10 +79,10 @@ export class S3Service {
 
       const result = await this.client.send(cmd);
 
-      this.logger.log(`Uploaded ${s3Key} (${file.length} bytes)`);
+      this.logger.log(`Uploaded object (${file.length} bytes)`);   // the key embeds patient id + file name
       return { s3Key, bucket: this.bucket, eTag: result.ETag, sizeBytes: file.length };
     } catch (err) {
-      this.logger.error(`S3 upload failed: ${(err as Error).message}`, (err as Error).stack);
+      this.logger.error(`S3 upload failed: ${errText(err)}`, sanitizeStack((err as Error).stack));
       throw new InternalServerErrorException('File upload failed');
     }
   }
@@ -105,9 +107,9 @@ export class S3Service {
   async delete(s3Key: string): Promise<void> {
     try {
       await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: s3Key }));
-      this.logger.log(`Deleted S3 key: ${s3Key}`);
+      this.logger.log('Deleted S3 object');
     } catch (err) {
-      this.logger.warn(`S3 delete failed for ${s3Key}: ${(err as Error).message}`);
+      this.logger.warn(`S3 delete failed: ${errText(err)}`);
     }
   }
 

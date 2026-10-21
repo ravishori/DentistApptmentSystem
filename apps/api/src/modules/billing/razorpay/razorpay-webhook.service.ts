@@ -76,7 +76,7 @@ export class RazorpayWebhookService {
         break;
 
       case 'refund.failed':
-        this.logger.warn(`Refund failed: ${JSON.stringify(payload.payload?.refund?.entity)}`);
+        this.logger.warn(`Refund failed: refund ${payload.payload?.refund?.entity?.id ?? '?'} payment ${payload.payload?.refund?.entity?.payment_id ?? '?'}`);   // ids only: the entity carries notes
         break;
 
       default:

@@ -3,6 +3,7 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { errText } from '../common/observability/redaction';
 
 /**
  * TokenBlacklistService
@@ -39,7 +40,7 @@ export class TokenBlacklistService {
 
       this.logger.debug(`Token revoked for user ${payload.sub} (TTL ${ttl}s)`);
     } catch (err) {
-      this.logger.warn(`Token revocation failed: ${(err as Error).message}`);
+      this.logger.warn(`Token revocation failed: ${errText(err)}`);
     }
   }
 

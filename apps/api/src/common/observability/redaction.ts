@@ -74,13 +74,41 @@ export function redact(value: unknown, opts: RedactOptions = {}, depth = 0, seen
   return out;
 }
 
-/** Internal-only summary of an unknown thrown value (name, code, scrubbed message). */
-export function summariseError(err: unknown): { name: string; code?: string; message: string } {
+/**
+ * Exception messages are free text written by anyone (application code, ORMs, providers). They can embed patient names,
+ * phone numbers, file names or query arguments, and a person's NAME cannot be detected by pattern. So by default only
+ * messages that are known to be data-free are kept:
+ *   - engine errors (TypeError / ReferenceError / RangeError: identifiers, not values),
+ *   - errors carrying a system/library code (ECONNREFUSED, ETIMEDOUT, ERR_*, EAUTH, ...).
+ * Everything else (plain Error, Prisma, HTTP exceptions, Twilio, ...) is reduced to name + code; the stack still shows
+ * where it happened. LOG_ERROR_MESSAGES=full opts in to scrubbed messages for local debugging only.
+ */
+const SYSTEM_CODE = /^E[A-Z0-9_]{2,}$/;
+const ENGINE_ERRORS = new Set(['TypeError', 'ReferenceError', 'RangeError']);
+
+export function summariseError(err: unknown): { name: string; code?: string; message?: string; messageOmitted?: true } {
   if (err instanceof Error) {
     const code = (err as { code?: unknown }).code;
-    return { name: err.name, ...(typeof code === 'string' ? { code } : {}), message: sanitizeText(err.message, 300) };
+    const codeStr = typeof code === 'string' ? code : undefined;
+    const keep = process.env.LOG_ERROR_MESSAGES === 'full' || ENGINE_ERRORS.has(err.name) || (codeStr !== undefined && SYSTEM_CODE.test(codeStr));
+    return {
+      name: err.name, ...(codeStr ? { code: codeStr } : {}),
+      ...(keep ? { message: sanitizeText(err.message, 200) } : { messageOmitted: true as const }),
+    };
   }
-  return { name: typeof err, message: sanitizeText(err, 300) };
+  return { name: typeof err, ...(process.env.LOG_ERROR_MESSAGES === 'full' ? { message: sanitizeText(err, 200) } : { messageOmitted: true as const }) };
+}
+
+/** One-line, data-free description for log templates: `${errText(err)}` instead of `${err.message}`. */
+export function errText(err: unknown): string {
+  const s = summariseError(err);
+  return `${s.name}${s.code ? ` ${s.code}` : ''}${s.message ? `: ${s.message}` : ''}`;
+}
+
+/** +919876543210 -> +91••••••3210 style: enough to correlate with a support ticket, not enough to identify or call. */
+export function maskPhone(phone: unknown): string {
+  const d = String(phone ?? '').replace(/\D/g, '');
+  return d.length < 4 ? '[PHONE]' : `••••${d.slice(-2)}`;
 }
 
 /** Stack trace limited to the top frames, with paths and secrets scrubbed. For server logs only, never for clients/e-mail. */

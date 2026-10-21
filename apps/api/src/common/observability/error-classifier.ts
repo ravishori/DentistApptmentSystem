@@ -48,7 +48,7 @@ export interface ClassifiedError {
   /** Whether this failure should be considered for an administrator alert. */
   alert: boolean;
   /** Internal only (logs): what actually was thrown, scrubbed. Never returned to clients. */
-  cause: { name: string; code?: string; message: string };
+  cause: { name: string; code?: string; message?: string; messageOmitted?: true };
 }
 
 const GENERIC: Record<number, string> = {

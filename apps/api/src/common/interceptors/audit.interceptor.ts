@@ -5,6 +5,7 @@ import { AuditAction } from '@prisma/client';
 import { Observable, tap } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AppRequest } from '../types/request.types';
+import { errText } from '../observability/redaction';
 
 const MUTATING = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);
 
@@ -38,12 +39,12 @@ export class AuditInterceptor implements NestInterceptor {
       tap({
         next: (responseBody) => {
           this.writeLog(req, responseBody, null, Date.now() - startMs).catch(
-            (e) => this.logger.warn(`Audit log write failed: ${e.message}`),
+            (e) => this.logger.warn(`Audit log write failed: ${errText(e)}`),
           );
         },
         error: (err) => {
           this.writeLog(req, null, err, Date.now() - startMs).catch(
-            (e) => this.logger.warn(`Audit log write failed: ${e.message}`),
+            (e) => this.logger.warn(`Audit log write failed: ${errText(e)}`),
           );
         },
       }),

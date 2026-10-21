@@ -28,6 +28,7 @@ import { Request } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../../common/decorators/public.decorator';
 import { RazorpayWebhookService } from './razorpay-webhook.service';
+import { errText, sanitizeStack } from '../../../common/observability/redaction';
 
 @ApiTags('Billing')
 @Controller({ path: 'billing/webhooks', version: '1' })
@@ -71,7 +72,7 @@ export class RazorpayWebhookController {
     // Process async — respond 200 immediately so Razorpay won't retry
     setImmediate(() =>
       this.webhookService.process(rawBody, signature, payload).catch((err) =>
-        this.logger.error(`Webhook processing error: ${err.message}`, err.stack),
+        this.logger.error(`Webhook processing error: ${errText(err)}`, sanitizeStack(err.stack)),
       ),
     );
 

@@ -4,6 +4,7 @@
  * through real sockets. Only the failure sources (a throwing controller / stubbed database probe) are fake.
  */
 jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }), { virtual: true });
+jest.setTimeout(30_000);          // booting a Nest app per test can exceed 5 s while the whole suite runs in parallel
 
 import {
   Body, Controller, Get, INestApplication, Injectable, Logger, MiddlewareConsumer, Module, NestModule, NotFoundException,
@@ -25,7 +26,8 @@ import { SkipTransform } from '../decorators/skip-transform.decorator';
 
 class SignupDto { @IsEmail() email!: string; @IsString() @MinLength(8) password!: string }
 
-const LEAKS = ['postgresql://app:SuperSecret1@db.internal:5432/dentalease_db', 'C:\\Users\\dev\\apps\\api\\src\\secret.ts', '/home/app/dist/main.js', 'asha.rao@example.com', 'rzp_live_AbCdEf123456', 'SELECT * FROM patients'];
+const NAME = 'Asha Rao Kulkarni';
+const LEAKS = [NAME, 'postgresql://app:SuperSecret1@db.internal:5432/dentalease_db', 'C:\\Users\\dev\\apps\\api\\src\\secret.ts', '/home/app/dist/main.js', 'asha.rao@example.com', 'rzp_live_AbCdEf123456', 'SELECT * FROM patients'];
 
 @Injectable()
 class Worker {

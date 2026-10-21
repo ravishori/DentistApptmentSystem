@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import dayjs from 'dayjs';
 import { claimReminder, confirmReminder, releaseReminder, ReminderStep } from './reminder-claim';
 import { twoHourWindow, isInTwoHourWindow } from './reminder-window';
+import { errText } from '../../common/observability/redaction';
 
 /**
  * RemindersService — cron-driven appointment reminder dispatcher.
@@ -41,7 +42,7 @@ export class RemindersService {
       await confirmReminder(this.prisma, apptId, step);
     } catch (err) {
       await releaseReminder(this.prisma, apptId, step);
-      this.logger.error(`${step} reminder delivery failed → appt ${apptId}: ${(err as Error).message} (will retry)`);
+      this.logger.error(`${step} reminder delivery failed → appt ${apptId}: ${errText(err)} (will retry)`);
     }
   }
 

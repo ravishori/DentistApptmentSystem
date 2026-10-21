@@ -9,6 +9,7 @@ import { claimReminder, confirmReminder, releaseReminder } from '../../appointme
 import { WhatsappProviderPolicy } from '../whatsapp-provider.policy';
 import { WhatsappService } from '../whatsapp.service';
 import { deliverWithFailover, orderFor, rememberIfAmbiguous, ambiguityKey, DeliveryError } from '../reminder-delivery';
+import { errText } from '../../../common/observability/redaction';
 
 /**
  * FOLLOW-UP FLOW
@@ -110,7 +111,7 @@ export class FollowupFlow {
           await this.sessions.startFlow(phone, appt.clinic.id, 'FOLLOWUP', 'AWAIT_RATING');
           await this.sessions.patchData(phone, { appointmentId: appt.id, patientName: appt.patient.fullName });
         } catch (err) {
-          this.logger.warn(`Follow-up rating prompt failed after the template was delivered → appt ${appt.id}: ${(err as Error).message}`);
+          this.logger.warn(`Follow-up rating prompt failed after the template was delivered → appt ${appt.id}: ${errText(err)}`);
         }
       };
 
@@ -140,7 +141,7 @@ export class FollowupFlow {
         await rememberIfAmbiguous(key, err);   // pin retries to the provider whose outcome is unknown
         await releaseReminder(this.prisma, appt.id, 'followup');   // nothing confirmed delivered → retried next run
         const tried = err instanceof DeliveryError ? err.tried.join(',') : '?';
-        this.logger.error(`Follow-up failed (tried: ${tried}) → appt ${appt.id}: ${(err as Error).message} — will retry`);
+        this.logger.error(`Follow-up failed (tried: ${tried}) → appt ${appt.id}: ${errText(err)} — will retry`);
       }
     }
   }

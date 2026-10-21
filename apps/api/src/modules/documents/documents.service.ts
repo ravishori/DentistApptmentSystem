@@ -15,6 +15,7 @@ import { AiTaggingService } from './ai-tagging.service';
 import { UploadDocumentDto, DocumentType } from './dto/upload-document.dto';
 import { SearchDocumentsDto } from './dto/search-documents.dto';
 import { Prisma } from '@prisma/client';
+import { errText } from '../../common/observability/redaction';
 
 // 50 MB hard cap
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -68,7 +69,7 @@ export class DocumentsService {
       autoTags      = tagResult.auto;
       suggestedTags = tagResult.suggested;
     } catch (err) {
-      this.logger.warn(`AI tagging failed for ${file.originalname}: ${(err as Error).message}`);
+      this.logger.warn(`AI tagging failed (${file.mimetype}, ${file.size} bytes): ${errText(err)}`);   // file names often contain patient names
     }
 
     // Merge manual + auto tags, dedupe
@@ -102,7 +103,7 @@ export class DocumentsService {
       },
     });
 
-    this.logger.log(`Document uploaded: ${doc.id} (${doc.fileName})`);
+    this.logger.log(`Document uploaded: ${doc.id}`);
 
     return { ...doc, url: await this.s3.presignedGetUrl(s3Key) };
   }

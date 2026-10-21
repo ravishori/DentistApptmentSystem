@@ -106,7 +106,7 @@ export class AiTaggingService {
 
     const confidence = Math.min(0.4 + hits * 0.15, 0.95);
 
-    this.logger.debug(`Tagged "${fileName}": auto=${[...auto].join(',')} suggested=${[...suggested].join(',')}`);
+    this.logger.debug(`Tagged document: auto=${auto.size} suggested=${suggested.size}`);   // not the file name (patient names)
 
     return {
       auto:      [...auto],

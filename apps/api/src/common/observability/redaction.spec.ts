@@ -1,4 +1,4 @@
-import { redact, sanitizeStack, sanitizeText, summariseError, templatePath } from './redaction';
+import { errText, maskPhone, redact, sanitizeStack, sanitizeText, summariseError, templatePath } from './redaction';
 
 const JWT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEifQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c';
 
@@ -75,11 +75,46 @@ describe('redact (key-based + deep)', () => {
 });
 
 describe('summariseError / sanitizeStack / templatePath', () => {
-  it('summarises Error objects, codes and non-errors safely', () => {
+  it('summarises system errors with their scrubbed message; everything else keeps only name + code', () => {
     const e = Object.assign(new Error('failed for a@b.co'), { code: 'ECONNREFUSED' });
     expect(summariseError(e)).toEqual({ name: 'Error', code: 'ECONNREFUSED', message: 'failed for [EMAIL]' });
-    expect(summariseError('plain string').name).toBe('string');
-    expect(summariseError(null).message).toBe('null');
+    expect(summariseError('plain string')).toEqual({ name: 'string', messageOmitted: true });
+    expect(summariseError(null)).toEqual({ name: 'object', messageOmitted: true });
+  });
+  it('FREE-FORM EXCEPTION MESSAGES ARE OMITTED: a patient name inside a message never reaches a log', () => {
+    const leaky = [
+      new Error('Appointment conflict for patient Asha Rao Kulkarni at 10:00'),
+      Object.assign(new Error('Unique constraint failed on (`phone`) for Asha Rao +919876543210'), { name: 'PrismaClientKnownRequestError', code: 'P2002' }),
+      new SyntaxError(`Unexpected token 'A', "Asha Rao Kulkarni" is not valid JSON`),
+      Object.assign(new Error('Twilio: cannot message Asha Rao'), { code: 20003 }),
+    ];
+    for (const e of leaky) {
+      const s = summariseError(e);
+      expect(JSON.stringify(s)).not.toMatch(/Asha|Kulkarni|9198765/);
+      expect(s.messageOmitted).toBe(true);
+      expect(s.message).toBeUndefined();
+      expect(errText(e)).not.toMatch(/Asha|Kulkarni/);
+    }
+    expect(summariseError(leaky[1])).toEqual({ name: 'PrismaClientKnownRequestError', code: 'P2002', messageOmitted: true });
+  });
+  it('engine errors keep their (value-free) message so bugs stay diagnosable', () => {
+    expect(summariseError(new TypeError("Cannot read properties of undefined (reading 'fullName')")).message).toContain("reading 'fullName'");
+    expect(errText(new ReferenceError('x is not defined'))).toBe('ReferenceError: x is not defined');
+    expect(errText(Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:6379'), { code: 'ECONNREFUSED' }))).toContain('ECONNREFUSED');
+  });
+  it('LOG_ERROR_MESSAGES=full opts in to SCRUBBED messages for local debugging only', () => {
+    process.env.LOG_ERROR_MESSAGES = 'full';
+    try {
+      const s = summariseError(new Error('bad value for a@b.co and postgresql://u:pw@h/d'));
+      expect(s.message).toBe('bad value for [EMAIL] and [URL_WITH_CREDENTIALS]');
+    } finally { delete process.env.LOG_ERROR_MESSAGES; }
+  });
+  it('errText never throws and masks phones to the last two digits', () => {
+    expect(() => errText(undefined)).not.toThrow();
+    expect(maskPhone('+91 98765 43210')).toBe('••••10');
+    expect(maskPhone('12')).toBe('[PHONE]');
+    expect(maskPhone(undefined)).toBe('[PHONE]');
+    expect(maskPhone('+919876543210')).not.toContain('98765');
   });
   it('limits stack depth and scrubs paths', () => {
     const stack = ['Error: x', ...Array.from({ length: 30 }, (_, i) => `    at fn${i} (C:\\Users\\dev\\proj\\src\\f${i}.ts:1:1)`)].join('\n');

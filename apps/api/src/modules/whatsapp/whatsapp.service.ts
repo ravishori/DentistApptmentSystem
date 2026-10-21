@@ -5,6 +5,8 @@ import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
 import dayjs from 'dayjs';
 import { WhatsappProviderPolicy } from './whatsapp-provider.policy';
+import { errText } from '../../common/observability/redaction';
+import { maskPhone } from '../../common/observability/redaction';
 
 @Injectable()
 export class WhatsappService {
@@ -53,7 +55,7 @@ export class WhatsappService {
         data:  { status: 'sent', externalId: externalId },
       });
     } catch (err) {
-      this.logger.error(`WA send failed → ${to}: ${(err as Error).message}`);
+      this.logger.error(`WA send failed → ${maskPhone(to)}: ${errText(err)}`);
       await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
         data:  { status: 'failed', failureReason: (err as Error).message },
@@ -104,7 +106,7 @@ export class WhatsappService {
         data:  { status: 'sent', externalId: externalId },
       });
     } catch (err) {
-      this.logger.error(`Template send failed: ${(err as Error).message}`);
+      this.logger.error(`Template send failed: ${errText(err)}`);
       const failed = await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
         data:  { status: 'failed', failureReason: (err as Error).message },
@@ -325,7 +327,7 @@ export class WhatsappService {
       clinicName:    clinic.name,
     });
 
-    this.logger.log(`Payment receipt sent to ${patient.phone} for invoice ${invoiceId}`);
+    this.logger.log(`Payment receipt sent to ${maskPhone(patient.phone)} for invoice ${invoiceId}`);
   }
 
   /**

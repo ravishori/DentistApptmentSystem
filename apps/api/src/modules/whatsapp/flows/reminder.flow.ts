@@ -9,6 +9,7 @@ import { WhatsappService } from '../whatsapp.service';
 import { deliverWithFailover, orderFor, rememberIfAmbiguous, ambiguityKey, DeliveryError } from '../reminder-delivery';
 import dayjs from 'dayjs';
 import { claimReminder, confirmReminder, releaseReminder } from '../../appointments/reminder-claim';
+import { errText } from '../../../common/observability/redaction';
 
 /**
  * REMINDER FLOW
@@ -86,7 +87,7 @@ export class ReminderFlow {
 
         this.logger.log(`48h reminder sent → appt ${appt.id}`);
       } catch (err) {
-        this.logger.error(`48h reminder failed → appt ${appt.id}: ${(err as Error).message}`);
+        this.logger.error(`48h reminder failed → appt ${appt.id}: ${errText(err)}`);
       }
     }
   }
@@ -148,7 +149,7 @@ export class ReminderFlow {
             ),
           );
         } catch (err) {
-          this.logger.warn(`24h quick-action buttons failed → appt ${appt.id}: ${(err as Error).message}`);
+          this.logger.warn(`24h quick-action buttons failed → appt ${appt.id}: ${errText(err)}`);
         }
       };
 
@@ -180,7 +181,7 @@ export class ReminderFlow {
         await rememberIfAmbiguous(key, err);   // pin retries to the provider whose outcome is unknown
         await releaseReminder(this.prisma, appt.id, '24h');   // nothing confirmed delivered → retried next tick
         const tried = err instanceof DeliveryError ? err.tried.join(',') : '?';
-        this.logger.error(`24h reminder failed (tried: ${tried}) → appt ${appt.id}: ${(err as Error).message} — will retry`);
+        this.logger.error(`24h reminder failed (tried: ${tried}) → appt ${appt.id}: ${errText(err)} — will retry`);
       }
     }
   }
@@ -208,7 +209,7 @@ export class ReminderFlow {
         }),
       );
     } catch (err) {
-      this.logger.error(`Booking confirmation failed: ${(err as Error).message}`);
+      this.logger.error(`Booking confirmation failed: ${errText(err)}`);
     }
   }
 }

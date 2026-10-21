@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CacheService } from '../../cache/cache.service';
 import { BookingFlow } from './flows/booking.flow';
+import { errText } from '../../common/observability/redaction';
 
 export const START_BOOKING_COOLDOWN_SECONDS = 600;
 const INBOUND_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -36,7 +37,7 @@ export class PublicBookingService {
     try {
       if (await this.mayStart(clinicId, phone)) await this.bookingFlow.start(phone, clinicId);
     } catch (err) {
-      this.logger.warn(`start-booking failed: ${(err as Error).message}`);   // never leak internals to an anonymous caller
+      this.logger.warn(`start-booking failed: ${errText(err)}`);   // never leak internals to an anonymous caller
     }
     return { accepted: true };
   }

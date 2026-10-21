@@ -3,6 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsappService } from './whatsapp.service';
 import dayjs from 'dayjs';
+import { maskPhone } from '../../common/observability/redaction';
 
 /**
  * @deprecated NOT REGISTERED in any module and intentionally left that way.
@@ -32,7 +33,7 @@ export class AutomationService {
       time:        appointment.startTime,
       clinicName:  appointment.clinic?.name ?? 'the clinic',
     });
-    this.logger.log(`Confirmation sent → ${p.phone} for appt ${appointment.id}`);
+    this.logger.log(`Confirmation sent → ${maskPhone(p.phone)} for appt ${appointment.id}`);
   }
 
   @OnEvent('appointment.reminder_24h')

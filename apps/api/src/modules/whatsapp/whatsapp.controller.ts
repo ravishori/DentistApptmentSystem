@@ -11,6 +11,8 @@ import { WebhookHandler } from './webhook/webhook.handler';
 import { PublicBookingService } from './public-booking.service';
 import { SendTextDto, SendTemplateDto, StartBookingDto, paramsAreValid } from './dto/send-message.dto';
 import { RequirePermission } from '../../common/decorators/permissions.decorator';
+import { logEvent } from '../../common/observability/structured-logger';
+import { sanitizeStack, summariseError } from '../../common/observability/redaction';
 import { Public } from '../../common/decorators/public.decorator';
 import { ClinicId } from '../../common/decorators/current-user.decorator';
 
@@ -59,7 +61,7 @@ export class WhatsappController {
   ) {
     // Run async — respond to Twilio immediately (< 10s SLA)
     this.webhookHandler.handle(clinicId, payload).catch((err) =>
-      console.error('Webhook processing error:', err),
+      logEvent('error', 'whatsapp.webhook_failed', { error: summariseError(err), stack: sanitizeStack(err instanceof Error ? err.stack : undefined) }),
     );
     // Twilio expects an empty 200 or TwiML — return empty TwiML
     return `<?xml version="1.0" encoding="UTF-8"?><Response></Response>`;

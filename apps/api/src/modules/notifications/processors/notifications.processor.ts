@@ -4,6 +4,7 @@ import { Job } from 'bull';
 import { NotificationChannel, NotificationStatus } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { NOTIFICATION_QUEUE, NotificationJob } from '../notifications.service';
+import { errText } from '../../../common/observability/redaction';
 
 @Processor(NOTIFICATION_QUEUE)
 export class NotificationsProcessor {
@@ -41,7 +42,7 @@ export class NotificationsProcessor {
         });
       }
     } catch (err) {
-      this.logger.error(`Notification job failed: ${(err as Error).message}`);
+      this.logger.error(`Notification job failed: ${errText(err)}`);
       throw err;
     }
   }

@@ -2,6 +2,8 @@ import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config';
 import { Twilio } from 'twilio';
 import { TwilioTextMessage, TwilioTemplateMessage, ButtonsPayload, ListPayload } from './template-builder';
+import { errText } from '../../../common/observability/redaction';
+import { maskPhone } from '../../../common/observability/redaction';
 
 
 @Injectable()
@@ -34,10 +36,10 @@ export class TwilioSenderService {
         to:   `whatsapp:${to}`,
         body,
       });
-      this.logger.log(`Text sent → ${to} | SID: ${msg.sid}`);
+      this.logger.log(`Text sent → ${maskPhone(to)} | SID: ${msg.sid}`);
       return msg.sid;
     } catch (err) {
-      this.logger.error(`Text failed → ${to}: ${(err as Error).message}`);
+      this.logger.error(`Text failed → ${maskPhone(to)}: ${errText(err)}`);
       throw err;
     }
   }
@@ -52,10 +54,10 @@ export class TwilioSenderService {
         contentSid:       payload.contentSid,
         contentVariables: payload.contentVariables,
       } as any);
-      this.logger.log(`Template sent → ${payload.to} | SID: ${msg.sid}`);
+      this.logger.log(`Template sent → ${maskPhone(payload.to)} | SID: ${msg.sid}`);
       return msg.sid;
     } catch (err) {
-      this.logger.error(`Template failed → ${payload.to}: ${(err as Error).message}`);
+      this.logger.error(`Template failed → ${maskPhone(payload.to)}: ${errText(err)}`);
       throw err;
     }
   }

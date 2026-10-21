@@ -47,7 +47,7 @@ export class BroadcastService {
       throw new BadRequestException('No opted-in patients found for this segment');
     }
 
-    this.logger.log(`Broadcast "${dto.name}" → ${patients.length} recipients in clinic ${clinicId}`);
+    this.logger.log(`Broadcast → ${patients.length} recipients in clinic ${clinicId}`);
 
     // Build per-patient message payloads
     const messages = patients.map((p) =>
@@ -94,7 +94,7 @@ export class BroadcastService {
     sent   = result.sent;
     failed = result.failed;
 
-    this.logger.log(`Broadcast "${dto.name}" complete — sent: ${sent}, failed: ${failed}`);
+    this.logger.log(`Broadcast complete — sent: ${sent}, failed: ${failed}`);
 
     return {
       broadcastId:  `broadcast_${Date.now()}`,

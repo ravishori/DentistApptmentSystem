@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import { errText } from '../common/observability/redaction';
 
 @Injectable()
 export class CacheService {
@@ -22,7 +23,7 @@ export class CacheService {
       const raw = await this.redis.get(key);
       return raw ? (JSON.parse(raw) as T) : null;
     } catch (err) {
-      this.logger.warn(`Cache GET failed [${key}]: ${err.message}`);
+      this.logger.warn(`Cache GET failed [${key}]: ${errText(err)}`);
       return null;
     }
   }
@@ -31,7 +32,7 @@ export class CacheService {
     try {
       await this.redis.set(key, JSON.stringify(value), 'EX', ttl);
     } catch (err) {
-      this.logger.warn(`Cache SET failed [${key}]: ${err.message}`);
+      this.logger.warn(`Cache SET failed [${key}]: ${errText(err)}`);
     }
   }
 
@@ -39,7 +40,7 @@ export class CacheService {
     try {
       await this.redis.del(key);
     } catch (err) {
-      this.logger.warn(`Cache DEL failed [${key}]: ${err.message}`);
+      this.logger.warn(`Cache DEL failed [${key}]: ${errText(err)}`);
     }
   }
 
@@ -49,7 +50,7 @@ export class CacheService {
       const keys = await this.redis.keys(pattern);
       if (keys.length) await this.redis.del(...keys);
     } catch (err) {
-      this.logger.warn(`Cache INVALIDATE failed [${pattern}]: ${err.message}`);
+      this.logger.warn(`Cache INVALIDATE failed [${pattern}]: ${errText(err)}`);
     }
   }
 
