@@ -12,7 +12,7 @@ Alerts are de-duplicated for `ALERT_COOLDOWN_SECONDS` (default 5 min): **one e-m
 ## 1. First five minutes
 
 1. Is it up? `GET /api/v1/health/live` (process) and `GET /api/v1/health/ready` (database). `503 unavailable` = database down.
-2. Find the evidence. Logs are one JSON object per line. With the request id from the alert:
+2. Find the evidence. Exception *messages* are deliberately not in the logs (they can contain patient data); use the error code, route, request id and stack. For local reproduction only, start the API with `LOG_ERROR_MESSAGES=full`. Logs are one JSON object per line. With the request id from the alert:
    ```powershell
    Select-String -Path api.log -Pattern '"requestId":"<id>"'     # every line of that request
    Select-String -Path api.log -Pattern '"event":"http.error"' | Select-Object -Last 20

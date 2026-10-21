@@ -87,7 +87,11 @@ One JSON object per line. Envelope fields: `timestamp`, `level`, `service`, `env
 
 Environment: `LOG_LEVEL` (debug|info|warn|error, default info), `LOG_FORMAT` (`json` default, `pretty` for local development), `SLOW_REQUEST_MS`, `SLOW_QUERY_MS`, `PRISMA_LOG_QUERIES=1` (durations only).
 
-Known limitation: free-form messages thrown by application code are scrubbed by pattern only. A person's *name* inside an arbitrary exception message cannot be detected; do not put patient data in exception messages. The WhatsApp webhook controller still contains one `console.error` call (WhatsApp code is outside this change).
+**Exception messages are omitted from logs by default.** A person's *name* inside an arbitrary exception message cannot be detected by pattern, and messages from ORMs and providers embed query arguments, file names and phone numbers. `summariseError()` therefore keeps only `name` + `code` (and sets `messageOmitted: true`), except for engine errors (`TypeError`/`ReferenceError`/`RangeError`, which carry identifiers, not values) and errors with a system/library code (`ECONNREFUSED`, `ERR_*`, `EAUTH`...). The stack still shows where it happened. For local debugging only, `LOG_ERROR_MESSAGES=full` includes scrubbed messages.
+
+Log call sites use `${errText(err)}` instead of `${err.message}`, `maskPhone(phone)` instead of a phone number, and ids/sizes instead of file names, message bodies or entities. `log-hygiene.spec.ts` fails the build if a production log statement interpolates raw messages, stacks, bodies, file names, phone numbers, names or `JSON.stringify`, or if production code calls `console.*`.
+
+Not covered: the database table `audit_logs` stores request bodies (only password/token/card keys masked); that is a data-retention decision, not log output (status report D-AUDIT).
 
 ## 4. Database and transaction handling
 
@@ -125,7 +129,7 @@ Flow: `report()` (synchronous, never throws) → de-duplication → caps → bou
 
 - `parseApiError` turns any axios failure into `{ kind, status, code, message, requestId, details, retryable, retryAfterSeconds }`; server wording is shown only for 4xx. `describeApiError` produces a toast string with the support reference.
 - Axios client: `X-Request-Id` on every request, 20 s timeout, **single-flight token refresh that stores the rotated refresh token** (the API rotates and revokes the old one; the old client stored only the access token, so a second refresh logged the user out), one replay per request, failures are always re-thrown.
-- Failed list loads render `ErrorState` (message, reference, retry) instead of the empty state on patients, appointments, billing and the dashboard.
+- Every data section follows one rule (`lib/query-state.ts`, `components/ui/query-boundary.tsx`): **loading → skeleton; failed → `ErrorState` with message, support reference and retry; succeeded-but-empty → empty state; ready → data** (a failed background refresh keeps the data and adds a "may be out of date" notice). Applied to dashboard, patients, appointments, billing, analytics (every chart/list/KPI), clinic (calendar, chair utilization, availability), settings (a failed profile load shows no editable form) and WhatsApp conversations.
 - React Query retries only transient failures (network, timeout, 5xx, 429) at most twice; mutations are never retried; submit buttons are disabled while pending and handlers ignore re-entrant submits.
 - Boundaries: `app/error.tsx`, `app/(dashboard)/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx`, plus the existing `ErrorBoundary`.
 - The browser no longer reports API failures to `/errors/client` (the server already logged and alerted them, and the old payload included response bodies). Render errors still report; the endpoint is rate limited, field-capped, sanitised, and only `fatal` reports can become alerts.

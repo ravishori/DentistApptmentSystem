@@ -45,13 +45,15 @@ npx jest                       # unit tests; *.int.spec.ts are skipped without T
 $env:TEST_DATABASE_URL='<disposable database url>'; npx jest   # adds the integration suites
 
 # Web (apps/web) — see section 2
+cd apps/web; npm test        # component tests (server-side rendering, no browser, no network, no providers)
 ```
 
 ## 5. Errors, logging and alerts (read `docs/OBSERVABILITY.md` before touching any of this)
 
 - All failed requests go through the single global filter (`common/filters/http-exception.filter.ts`) and `classifyException`; do not add per-controller try/catch that formats its own error bodies, and never put stack traces, SQL, Prisma messages, connection strings or patient data in a response, a log field or an alert. New failure types get a stable code in `error-classifier.ts` with a test.
-- Log with `logEvent(level, 'domain.event', { ...context })` (or Nest `Logger`). Context is redacted by key and content, but **do not put patient data in exception messages**: names cannot be detected by pattern.
+- Log with `logEvent(level, 'domain.event', { ...context })` (or Nest `Logger`). Context is redacted by key and content. Exception messages are NOT logged by default (names cannot be detected by pattern): write `${errText(err)}`, never `${err.message}`; mask phones with `maskPhone()`; log ids and sizes, not file names, message bodies or entities. `log-hygiene.spec.ts` enforces this and also forbids `console.*` in production code.
 - Alerts only through `ErrorEmailService.report()`. There is no default recipient and no hard-coded address: configuration is environment only (`.env.example`, placeholders). Never claim alerting works from a green unit test: `smtp_accepted` from the local sink proves the code path, and only a received e-mail proves delivery (`POST /ops/alerts/test?wait=true`, super_admin).
 - Never retry database writes or provider calls automatically. `retry.ts` is for idempotent probes only.
 - Tests and scripts must not read mail credentials from the repository `.env`: the live-test orchestration blanks `GMAIL_*`, `ALERT_EMAIL`, `SES_*` and points `SMTP_HOST` at the local sink (`scripts/e2e/smtp-sink-server.js`).
+- Web data sections: use `QueryBoundary`/`ErrorState` (`components/ui`). A failed request must render the error state with a support reference and retry; it must never be rendered as an empty list, zeros or "no data". New pages need a failed/empty/loading test in `apps/web/src/__tests__`.
 - Build note: `nest build` uses `tsconfig.build.json` (no specs, not incremental). If `dist` is ever empty after a "successful" build, delete `apps/api/*.tsbuildinfo`.

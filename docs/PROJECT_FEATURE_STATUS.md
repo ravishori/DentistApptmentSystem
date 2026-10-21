@@ -8,7 +8,7 @@
 | Report date | 2026-10-21 |
 | Repository | `D:\ravishori\DentistAptSystem` (remote `origin` = `https://github.com/ravishori/DentistApptmentSystem.git`) |
 | Baseline commit before this audit | `ad4a92e` (`chore: initialise AI dentist appointment system`) |
-| Latest verified commit | `ee122e9` (code verified 2026-10-21; docs-only commits follow) |
+| Latest verified commit | `3e6defb` (code and tests verified 2026-10-21; docs-only commit follows) |
 | Production readiness | **NO-GO** — see section 2 |
 
 Evidence tags: **[R]** = re-run on 2026-10-21 during this audit. **[H]** = historical: produced earlier in this project, supported by saved files, not re-run on that date.
@@ -56,13 +56,13 @@ Multi-tenant (one clinic = one tenant) dental practice system for India: appoint
 | Status | Count | Feature IDs |
 |---|---|---|
 | COMPLETE — VERIFIED | 22 | A2, A3, C2, C3, C7, D2, D4, D5, G1, I1, I2, I3, J1, J2, J3, M4, M8, M9, M10, P1, P2, P4 |
-| IMPLEMENTED — PARTIALLY VERIFIED | 31 | A1, A4, B1, C1, C4, D1, D3, D7, F1, F2, F3, G2, I5, J4, J6, J7, K2, L1, L2, L4, L5, L6, M1, M2, M11, M12, M13, N1, O1, O2, O4 |
-| PARTIALLY IMPLEMENTED | 6 | B3, E3, F5, H3, L3, M7 |
+| IMPLEMENTED — PARTIALLY VERIFIED | 34 | A1, A4, B1, C1, C4, D1, D3, D7, F1, F2, F3, G2, I5, J4, J6, J7, K1, K2, L1, L2, L4, L5, L6, L7, M1, M2, M11, M12, M13, M14, N1, O1, O2, O4 |
+| PARTIALLY IMPLEMENTED | 7 | B3, E3, F5, H3, J12, L3, M7 |
 | BLOCKED | 5 | C6, F4, I4, N2, N4 |
 | NOT IMPLEMENTED | 4 | B2, J8, N3, O3 |
-| NOT VERIFIED | 18 | A5, C5, D6, E1, E2, F6, G3, H1, H2, I6, I7, J5, J9, K1, M3, M5, M6, P3 |
+| NOT VERIFIED | 17 | A5, C5, D6, E1, E2, F6, G3, H1, H2, I6, I7, J5, J9, M3, M5, M6, P3 |
 | DEFERRED | 2 | J10, J11 |
-| **Total** | **88** | |
+| **Total** | **91** | |
 
 Rows counted: the feature rows in section 4 (IDs A1–P3).
 
@@ -110,7 +110,7 @@ Columns: **Where** = frontend page(s) / backend routes and modules (source under
 | D4 | Reschedule | COMPLETE — VERIFIED (API and client contract) | `POST /appointments/:id/reschedule`; `appointments.service.ts` | `patients-notifications-contract.http.spec.ts` (POST ok, PATCH 404, service errors → 400/404), `route-security.int.spec.ts` (cross-clinic), live: moves the appointment, unavailable slot → 400, assistant → 403 [R]. **Fixed:** client sent `PATCH` | No page currently calls `appointmentsApi.reschedule`, so there is no reschedule UI yet | Build the UI | 2026-10-21 |
 | D5 | Appointment money redaction (estimated cost, invoice, treatment prices) | COMPLETE — VERIFIED | `appointment-financials.ts`, `appointments.controller.ts` | `appointment-financials.spec.ts` (9); live role matrix [R] | Reads still unguarded by `appointments:read` | — | 2026-10-21 |
 | D6 | Appointments UI (week calendar, book modal) | NOT VERIFIED | `(dashboard)/appointments`, `components/appointments/book-modal.tsx` | `tsc` + `next build` pass [R]; no UI test | See D4 | Browser test | 2026-10-21 |
-| D7 | Clinic management: chairs, doctor availability, schedule overrides, free slots, day schedule, booking via `/clinic-management/appointments` | IMPLEMENTED — PARTIALLY VERIFIED | `clinic` page; `/clinic-management/*` | `m7-availability.spec.ts` (11) [R] | Second booking entry point not covered by the new permission/tenant tests; GETs unguarded | Align with D2 rules; add tests | 2026-10-21 |
+| D7 | Clinic management: chairs, doctor availability, schedule overrides, free slots, day schedule, booking via `/clinic-management/appointments` | IMPLEMENTED — PARTIALLY VERIFIED | `clinic` page; `/clinic-management/*` | `m7-availability.spec.ts` (11) [R]; calendar, chair utilization and availability UI now show failures (were swallowed by empty `catch`) — `pages-error-states.test.tsx` [R] | Second booking entry point not covered by the new permission/tenant tests; GETs unguarded | Align with D2 rules; add tests | 2026-10-21 |
 
 ### E. Dentist and staff management
 
@@ -136,7 +136,7 @@ Columns: **Where** = frontend page(s) / backend routes and modules (source under
 | ID | Feature | Status | Where | Evidence | Gaps, defects, risks | Next action | Verified |
 |---|---|---|---|---|---|---|---|
 | G1 | Private revenue trend + access grants | COMPLETE — VERIFIED | `analytics` page; `/analytics/revenue/*`; `revenue-access.service.ts` | `revenue-access.spec.ts` (58), `revenue.int.spec.ts` (14), live 102/102 [R] | UI chart not browser-tested | — | 2026-10-21 |
-| G2 | Dashboard KPIs / LTV / funnel / trends with money redaction | IMPLEMENTED — PARTIALLY VERIFIED | `dashboard`, `analytics`; `/analytics/*` | Redaction live-checked [R] | Non-revenue analytics routes have no `analytics:read` guard; CSV exports (`/analytics/export/*`) not tested | Add guard decision + tests | 2026-10-21 |
+| G2 | Dashboard KPIs / LTV / funnel / trends with money redaction | IMPLEMENTED — PARTIALLY VERIFIED | `dashboard`, `analytics`; `/analytics/*` | Redaction live-checked [R]; all analytics sections render error / loading / empty states correctly (`pages-error-states.test.tsx`) [R] | Non-revenue analytics routes have no `analytics:read` guard; CSV exports (`/analytics/export/*`) not tested | Add guard decision + tests | 2026-10-21 |
 | G3 | Billing reports UI | NOT VERIFIED | `components/billing/ReportsDashboard.tsx` | Build only | — | Browser test | 2026-10-21 |
 
 ### H. Prescriptions, clinical notes, treatments
@@ -169,17 +169,18 @@ Columns: **Where** = frontend page(s) / backend routes and modules (source under
 | J4 | Inbound Twilio webhook (STOP, BOOK, CANCEL, etc.) | IMPLEMENTED — PARTIALLY VERIFIED | `POST /whatsapp/webhook/:clinicId` (public); `webhook.handler.ts` | None for the handler | **No `X-Twilio-Signature` verification; clinic id path param unvalidated** → forged STOP/CANCEL/BOOK possible | P0: add signature check (needs public URL + auth token) | 2026-10-21 |
 | J5 | Conversational booking / reschedule / cancel flows | NOT VERIFIED | `flows/booking.flow.ts`, `reschedule.flow.ts` | None | Depends on J4 | Test after J4 | — |
 | J6 | Broadcast campaigns (admin only, opted-in audience) | IMPLEMENTED — PARTIALLY VERIFIED | `whatsapp` page; `/whatsapp/broadcast*` | Audience consent filter covered in consent specs [R] | Sending untested against real provider | Sandbox run | 2026-10-21 |
-| J7 | Conversations list/history | IMPLEMENTED — PARTIALLY VERIFIED | `/whatsapp/conversations*` | None | Any logged-in role can read patient chats (policy A1) | Decide permission | 2026-10-21 |
+| J7 | Conversations list/history | IMPLEMENTED — PARTIALLY VERIFIED | `/whatsapp/conversations*`; `whatsapp` page `components/whatsapp/conversations.tsx` | `pages-error-states.test.tsx`: failed → error state; `{ items: [] }` → genuinely empty; real API row shape rendered [R]. **UI defect fixed:** the page read `.length` of the response object, so it always showed "No active conversations" even when the API returned conversations | Any logged-in role can read patient chats (policy A1); API not modified (WhatsApp hardening deferred, J10) | Decide permission (A1) | 2026-10-21 |
 | J8 | START re-subscribe | NOT IMPLEMENTED | `webhook.handler.ts` | — | STOP reply promises it | Implement or reword | 2026-10-21 |
 | J9 | Template approval / provider account state | NOT VERIFIED | `.env.example` `WA_TMPL_*` | None | External dependency | Confirm with provider | — |
 | J10 | Conversation endpoint hardening (permission, field selection, pagination bounds) | DEFERRED | `/whatsapp/conversations*` | Findings W1–W3 in `docs/security/sensitive-data-authorisation-review.md` | WhatsApp/Twilio out of scope for this change | Do in a WhatsApp-scoped task | 2026-10-21 |
 | J11 | Twilio webhook signature verification | DEFERRED | `POST /whatsapp/webhook/:clinicId` | Same as J4 | Still P0; not modified | WhatsApp-scoped task | 2026-10-21 |
+| J12 | Broadcast campaign form | PARTIALLY IMPLEMENTED | `whatsapp` page `BroadcastModal`; `POST /whatsapp/broadcast` | Found by comparing the form's payload with the API DTO (not run against a provider) | **The form sends `{ audience, templateName }`; the API requires `{ name, message, targetSegment }`, so a campaign always gets HTTP 400.** Failure is now shown with a reference; the form was NOT changed because a fix makes live broadcasts reachable and needs a decision on the message content | Decide the campaign UX, then fix and sandbox-test | 2026-10-21 |
 
 ### K. Admin functions, settings, user management
 
 | ID | Feature | Status | Where | Evidence | Gaps, defects, risks | Next action | Verified |
 |---|---|---|---|---|---|---|---|
-| K1 | Clinic profile and stats | NOT VERIFIED | `settings`, `clinic`; `/clinic/profile`, `/clinic/stats` | Stats redaction live-checked [R] | Profile update (admin) untested | Add tests | 2026-10-21 |
+| K1 | Clinic profile and stats | IMPLEMENTED — PARTIALLY VERIFIED | `settings`, `clinic`; `/clinic/profile`, `/clinic/stats` | Stats redaction live-checked [R]; Settings page: a failed profile load shows an error and NO editable form (previously it showed blank fields whose Save would have overwritten the profile) — `pages-error-states.test.tsx` [R] | Profile update (admin) untested | Add tests | 2026-10-21 |
 | K2 | Client error reporting (public `POST /errors/client`) | IMPLEMENTED — PARTIALLY VERIFIED | `lib/error-reporter.ts`, `app/error.tsx`, `ErrorBoundary`; `modules/errors/errors.controller.ts` | `errors.controller.http.spec.ts` (11): field caps and whitelist, sanitised log, rate limit 10/min, only `fatal` can alert and is de-duplicated, hanging/failing SMTP never slows or fails the response [R] | Hardened this pass (was an unauthenticated e-mail trigger with free-form `extra`); React rendering of the boundaries is untested | Browser test | 2026-10-21 |
 
 ### L. Frontend usability, responsiveness, accessibility, error states
@@ -187,11 +188,12 @@ Columns: **Where** = frontend page(s) / backend routes and modules (source under
 | ID | Feature | Status | Where | Evidence | Gaps, defects, risks | Next action | Verified |
 |---|---|---|---|---|---|---|---|
 | L1 | Design system, dark mode, a11y helpers | IMPLEMENTED — PARTIALLY VERIFIED | `components/ui/*`, `a11y-enhancer.tsx`, `theme-toggle.tsx` | `tsc` + `next build` pass [R]; 21 files use `aria-*` | No automated a11y, visual or responsive test; not reviewed in a browser this session | Run axe + manual keyboard/mobile review | 2026-10-21 |
-| L2 | Error boundaries and not-found | IMPLEMENTED — PARTIALLY VERIFIED | `app/error.tsx`, `app/(dashboard)/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx`, existing `ErrorBoundary` | `web-error-handling.spec.ts` structural checks (files exist, wired, dashboard boundary uses `ErrorState`) and a successful `next build` [R] | **Never rendered or triggered in a browser; no React component tests** | Browser/Playwright test that forces a render error | 2026-10-21 |
+| L2 | Error boundaries and not-found | IMPLEMENTED — PARTIALLY VERIFIED | `app/error.tsx`, `app/(dashboard)/error.tsx`, `app/global-error.tsx`, `app/not-found.tsx`, existing `ErrorBoundary` | `web-error-handling.spec.ts` structural checks; `ErrorState` rendered and exercised by `error-state.test.tsx` (21); successful `next build` [R] | The boundary components themselves are not triggered by a real render error; no browser test | Playwright test that forces a render error | 2026-10-21 |
 | L3 | Role-aware UI | PARTIALLY IMPLEMENTED | `analytics/page.tsx` hides money; sidebar shows all pages to all roles | — | Navigation not role-filtered | Filter nav by permission | 2026-10-21 |
 | L4 | Frontend ↔ API contract | IMPLEMENTED — PARTIALLY VERIFIED | `apps/web/src/lib/api.ts` | `web-api-contract.spec.ts` (110): every `api.*` call resolves to a mounted route with the same method, with Express first-match semantics (catches `/patients/stats` swallowed by `/:id`); mutation check: re-introducing the old calls fails 6 tests [R] | Request/response payload shapes are verified only for the flows with HTTP tests; `fetch` calls in `pay/[orderId]` and `error-reporter.ts` are outside the check | Extend to payload schemas | 2026-10-21 |
-| L5 | Frontend API error handling (parser, client, retry policy, duplicate-submit guard) | IMPLEMENTED — PARTIALLY VERIFIED | `lib/api-error.ts`, `lib/api.ts`, `app/providers.tsx`, `components/ui/error-state.tsx` | `web-error-handling.spec.ts` (39): network/timeout/validation/401/403/404/409/429/5xx, no server text for 5xx, request id handling, retry only for transient failures, submit guard, axios client (request id header, timeout, single-flight refresh storing the ROTATED refresh token, one replay, failures never masked) [R]. **Defects fixed:** second refresh logged users out; failed lists showed "No patients yet"; API failures were re-reported with response bodies | Pages show `ErrorState` on failed loads (patients, appointments, billing, dashboard); other pages (analytics, clinic, settings, whatsapp) not yet converted; UI rendering untested | Convert remaining pages; browser tests | 2026-10-21 |
+| L5 | Frontend API error handling and data-section states | IMPLEMENTED — PARTIALLY VERIFIED | `lib/api-error.ts`, `lib/api.ts`, `lib/query-state.ts`, `components/ui/{error-state,query-boundary}.tsx`; pages: dashboard, patients, appointments, billing, analytics, clinic (calendar, chairs, availability), settings, whatsapp | `web-error-handling.spec.ts` (39), `error-state.test.tsx` (21), `pages-error-states.test.tsx` (24): every listed page rendered in loading / FAILED / EMPTY / ready states with seeded query results — a failed load shows an error with a support reference and never zeros, "No data yet" or an empty list; no server internals for a 5xx; failed refresh keeps data with a notice [R]. Mutation checks: removing the Settings error guard or the chair-utilization error branch fails tests [R] | **Server-side rendering only**: Retry-click, focus management, hydration and real browser behaviour are not exercised; `treatments` page is intentionally unavailable; chair/availability *mutation* errors still use `alert()` | Playwright tests; replace `alert()` | 2026-10-21 |
 | L6 | Add-patient and booking form payloads | IMPLEMENTED — PARTIALLY VERIFIED | `lib/payloads.ts`, `patients/page.tsx`, `components/appointments/book-modal.tsx` | `web-error-handling.spec.ts`: the OLD payloads are rejected by the real DTOs (gender `"MALE"`, empty optionals, `startTime` `"09:00:00"`), the new builders are accepted [R]. **Defect fixed: both forms could never succeed** | Forms not exercised in a browser; patient id on the booking form is a free-text UUID field (UX) | Patient picker; browser test | 2026-10-21 |
+| L7 | Frontend component test harness | IMPLEMENTED — PARTIALLY VERIFIED | `apps/web/jest.config.js`, `src/__tests__/*` (`npm test` in `apps/web`) | 45/45 tests pass [R]; no new dependencies (Jest + ts-jest + `react-dom/server`); all API modules are replaced by inert mocks, nothing touches a network | No DOM/jsdom: cannot click, type or hydrate | Add a DOM environment or Playwright | 2026-10-21 |
 
 ### M. API validation, rate limiting, audit logging, security controls
 
@@ -207,9 +209,10 @@ Columns: **Where** = frontend page(s) / backend routes and modules (source under
 | M8 | Central error contract and classification | COMPLETE — VERIFIED | `common/observability/error-classifier.ts`, `filters/http-exception.filter.ts` | `error-classifier.spec.ts` (42), `error-contract.http.spec.ts` (30: contract fields, request id in header+body, nothing sensitive in any 4xx/5xx body, malformed JSON, 429/503 guidance), `error-handling.int.spec.ts` (13, real PostgreSQL: unique/FK/not-found/check/raw SQLSTATE classification, dead-port 503); live `observability.js` [R] | Contract documented in `docs/OBSERVABILITY.md`; additive change (new `error`, `requestId`); P2002 and Throttler texts changed | — | 2026-10-21 |
 | M9 | Structured logging, redaction and request correlation | COMPLETE — VERIFIED | `structured-logger.ts`, `redaction.ts`, `request-context.ts`, `winston.logger.ts` facade | `redaction.spec.ts` (24), `logging-core.spec.ts` (24), HTTP spec: one `http.error` per failed request, ids survive awaits and 20 concurrent requests, no secrets/SQL/e-mail/paths in any log line; live: 0 leaks of DB password, JWT secret, token, e-mail, phone or password in the API's own log output [R] | Names inside free-form exception messages cannot be pattern-detected (do not put patient data in exception messages); one `console.error` remains in the WhatsApp controller (out of scope) | — | 2026-10-21 |
 | M10 | Health and readiness | COMPLETE — VERIFIED | `GET /api/v1/health/live`, `/ready`; `health.service.ts` | `health.service.spec.ts` (11), HTTP spec (200/503/recovery, minimal body), `error-handling.int.spec.ts` (real database up, dead port down, recovery), live drill with PostgreSQL actually stopped and restarted [R] | Public by design; Redis outage reports `degraded` (200) | — | 2026-10-21 |
-| M11 | Administrator e-mail alerting | IMPLEMENTED — PARTIALLY VERIFIED | `common/logger/error-email.service.ts`, `ops.controller.ts` | `error-email.service.spec.ts` (31): no hard-coded recipient, disabled without config, non-blocking, bounded queue/caps, de-duplication + aggregation, retry/backoff, no recursion, sanitised content, real nodemailer SMTP exchange with a LOCAL sink (accept, 451 retry, 550, dropped, hang, port closed); live drill: test alert + one critical outage alert + recovery notice accepted by the local sink [R] | **Delivery to a real mailbox through a real SMTP provider has NOT been verified.** `smtp_accepted` from the local sink only proves the code path. Recipient and SMTP provider must be chosen by the owner. Legacy `.env` contains Gmail credentials that were rejected by Gmail during development (see section 5) | Owner sets `ALERT_EMAIL_TO` + SMTP in the target environment, then `POST /ops/alerts/test?wait=true` and confirms the e-mail arrived | 2026-10-21 |
+| M11 | Administrator e-mail alerting | IMPLEMENTED — PARTIALLY VERIFIED | `common/logger/error-email.service.ts`, `ops.controller.ts` | `ops.controller.http.spec.ts` (13: the alert-test endpoint and its siblings are `super_admin` only — clinic_admin, dentist, receptionist, assistant → 403 with NO alert created, anonymous → 401, rate limit 3/min, SMTP result surfaced, nothing sensitive in status), `error-email.service.spec.ts` (31): no hard-coded recipient, disabled without config, non-blocking, bounded queue/caps, de-duplication + aggregation, retry/backoff, no recursion, sanitised content, real nodemailer SMTP exchange with a LOCAL sink (accept, 451 retry, 550, dropped, hang, port closed); live drill: test alert + one critical outage alert + recovery notice accepted by the local sink [R] | **Delivery to a real mailbox through a real SMTP provider has NOT been verified.** `smtp_accepted` from the local sink only proves the code path. Recipient and SMTP provider must be chosen by the owner. Legacy `.env` contains Gmail credentials that were rejected by Gmail during development (see section 5) | Owner sets `ALERT_EMAIL_TO` + SMTP in the target environment, then `POST /ops/alerts/test?wait=true` and confirms the e-mail arrived | 2026-10-21 |
 | M12 | Metrics (in-process) | IMPLEMENTED — PARTIALLY VERIFIED | `metrics.service.ts`, `GET /ops/metrics` | `logging-core.spec.ts` (counters, histogram, cardinality bound, Prometheus text), HTTP spec counters, live `/ops/metrics` as super_admin (403 for clinic_admin, 401 anonymous) [R] | Nothing scrapes it; per process; resets on restart | Attach a scraper if wanted | 2026-10-21 |
 | M13 | Process-level failure handling | IMPLEMENTED — PARTIALLY VERIFIED | `process-handlers.ts`, `main.ts` | `logging-core.spec.ts`: rejection → log+count+alert and keep running; uncaught exception → critical alert, bounded flush, `exit(1)` once; failing alert channel cannot block the exit [R] | Tested with an event emitter; a real crash of the running API was not forced | Crash drill in staging | 2026-10-21 |
+| M14 | PII-safe logging | IMPLEMENTED — PARTIALLY VERIFIED | `observability/redaction.ts` (`summariseError`, `errText`, `maskPhone`), 13 files of log call sites | `redaction.spec.ts` (28): free-form exception messages omitted (plain Error, Prisma, SyntaxError with data snippets, numeric-coded provider errors), engine/system-coded messages kept; `log-hygiene.spec.ts` (9) statically rejects log statements that interpolate raw messages, stacks, bodies, file names, phones, names or `JSON.stringify`, and any `console.*`; `error-contract.http.spec.ts` name canary "Asha Rao Kulkarni" absent from responses, logs and alerts; live drill leak scan (0 leaks in 331 lines) [R]. **Fixed:** inbound WhatsApp text and phone numbers, document file names (often patient names), S3 keys, refund entities and raw provider messages were being logged | Absence of patient data in logs cannot be proven for future code; `audit_logs` (database table, not log output) still stores request bodies — see decision D-AUDIT | Decide audit-body retention | 2026-10-21 |
 
 ### N. Database schema, migrations, backups, operations
 
@@ -249,6 +252,9 @@ Columns: **Where** = frontend page(s) / backend routes and modules (source under
 6. **P1 — Docker compose publishes database and Redis ports to the host** (O1).
 7. **P2 — Open self-service registration** (A1); implicit conversion of objects to strings in DTOs (M1); in-memory rate limiter (M2); audit-log failures swallowed (M3).
 
+### 5.1a Open decision: request bodies in `audit_logs`
+`AuditInterceptor` persists the request body of every POST/PATCH/PUT/DELETE into `audit_logs.new_data` with only password/token/card keys masked. Patient names, phones, clinical notes and prices therefore sit in that table. This is a database record (access-controlled, intended as an audit trail), not log output, and it was not changed. Decide what the audit trail must hold (field names only? changed fields? full body with a retention period?) before production. Tracked as D-AUDIT.
+
 ### 5.1b Incident during this change (disclosed)
 While verifying alerting, the first live drill started the API with the repository's real `.env` loaded. That file contains legacy `GMAIL_USER`/`GMAIL_APP_PASSWORD` entries, and the OLD transport order preferred Gmail over `SMTP_HOST`, so the test API **attempted to authenticate to smtp.gmail.com** (3 alert deliveries). Gmail answered `535 5.7.8 BadCredentials`; **nothing was delivered** (the recipient was a test address, and authentication failed before any message was accepted). This contacted a live provider contrary to the task rules. Fixed: an explicit `SMTP_HOST` now always wins over legacy Gmail credentials (unit-tested), the live-test orchestration blanks every mail credential, and `AGENTS.md` now forbids tests from reading mail credentials from `.env`. Earlier live drills in this project ran the previous alert service with the same `.env`; if a 5xx occurred in one of them, a real alert may have been sent to the legacy `ALERT_EMAIL` address. The stored Gmail app password was rejected, so it should be treated as invalid or revoked and **rotated by the owner**; it was not read, printed or modified.
 
@@ -283,20 +289,27 @@ Patient phones and chats are processed for WhatsApp; consent defaults to opt-out
 
 ## 7. Test and build results
 
-### 7.1 Re-run on 2026-10-21 (error handling, observability and alerting)
+### 7.1 Re-run on 2026-10-21 (frontend error states, PII-safe logging, operator-endpoint tests)
 | Check | Result |
 |---|---|
 | API `tsc --noEmit` | exit 0 |
-| API `npm run build` (`tsconfig.build.json`) | exit 0, 162 files, `dist/main.js` present, no spec files |
-| Jest without database | 30 suites passed, 8 skipped (integration); **838 passed**, 124 skipped, 962 total |
-| Jest with disposable PostgreSQL | **38/38 suites, 962/962 tests passed** (was 732 before this change: +230) |
-| Live `observability.js`, 3 phases (database up → **PostgreSQL stopped** → restarted) with a local SMTP sink | **33/33** (19 + 8 + 6): contract, request ids, health, ops endpoints, test alert, malicious input; outage → readiness 503, safe 503 bodies, ONE critical alert; recovery without API restart, one recovery notice, no duplicates. API log scan: 334 lines, 331 JSON, **0** occurrences of the DB password, JWT secret, access token, user e-mail, phone or password; 19 `http.error`, 3 `alert.queued`, 3 `alert.smtp_accepted` (local sink), 0 `alert.delivery_failed` |
-| Live `auth-and-contracts.js` / `revenue-and-permissions.js` / `whatsapp-appointment-routes.js` | **41/41**, **102/102**, **30/30** |
+| API `npm run build` | exit 0 |
+| Jest without database | Test Suites: 8 skipped, 32 passed, 32 of 40 total | Tests:       124 skipped, 864 passed, 988 total |
+| Jest with disposable PostgreSQL | **40/40 suites, 988/988 tests passed** |
+| **Web component tests** (`apps/web`, `npm test`) | **45/45 passed** (error-state 21, pages-error-states 24) |
+| Live `observability.js` (3 phases, PostgreSQL stopped and restarted, local SMTP sink) | [up] 19/19 checks passed, [down] 8/8 checks passed, [recovered] 6/6 checks passed; API log lines: 338; JSON lines: 335; secret/PII leaks found: 0 |
+| Live `auth-and-contracts.js` / `revenue-and-permissions.js` / `whatsapp-appointment-routes.js` | 41/41, 102/102, 30/30 |
 | Web `tsc --noEmit` | exit 0 |
 | Web `next build` with `NEXT_DIST_DIR=.next-build`, `NODE_ENV=production` | exit 0 |
-| Dev server :3000 | process unchanged (pid 23160); `/` 307; `/login`, `/dashboard`, `/patients`, `/appointments`, `/treatments` 200; `/does-not-exist` 404 |
+| Dev server :3000 | **Not running when checked at the end of this change** (no listener on 3000, pid 23160 gone). It was last confirmed healthy at 03:27 the same day; nothing run by this work stops port 3000 (test scripts only stop 3011, 56379, 55432, 2525 and 3100). Left as found: not restarted |
 
-**Coverage** (Jest/istanbul, measured on the error-handling modules only, from the 38-suite run with the disposable database):
+**Browser smoke check (real Chromium pane, a separate dev server on port 3100 with its API URL pointing at nothing, fake local session; no backend and no provider involved):** Settings, Analytics (Overview), Clinic (weekly calendar and doctor filter) and WhatsApp (Conversations tab) each showed their failure state with the "Cannot reach the server" message and a Try again button, no zeros or empty lists; clicking Try again on Settings issued a new `GET /clinic/profile`. Not clicked through: the other tabs, forms and the success/empty states (those are covered only by the server-rendering tests).
+
+**Flaky results seen while preparing the commit, and what was done:** one full run (09:30) had two backend HTTP tests time out at Jest's default 5 s (first test in a file boots a Nest app while the whole suite runs in parallel) and the revenue live script report 101/102 (`owner → timeline has invoices`, the same unexplained single failure seen twice before). The HTTP specs now set a 30 s timeout, and the live script now waits out HTTP 429 (Retry-After) instead of reporting it as a failure and prints how many such retries happened. The rerun passed everything (988/988, 102/102 with 0 rate-limit retries), so **429 is a plausible but unproven cause**; the failing check's cause was not otherwise identified.
+
+**Not performed / not possible here:** any browser interaction (click, type, hydration, responsive layout, keyboard focus); real SMTP delivery to a mailbox; any real provider call; the real `dentalease_db`; a forced crash of the running API.
+
+**Coverage** (Jest/istanbul on the error-handling modules, from the full run with the disposable database):
 
 | File | Lines | Branches | Functions |
 |---|---|---|---|
@@ -320,16 +333,16 @@ Patient phones and chats are processed for WhatsApp; consent defaults to opt-out
 | `modules/errors/errors.module.ts` | 100% | 100% | 100% |
 | **All error-handling files** | **99%** | **85%** | **90%** |
 
-Uncovered or weakly covered critical paths: `ops.controller.ts` is now unit tested but its `super_admin` role gate is proven only by the live drill (clinic_admin 403, anonymous 401); `error-classifier.ts` branches for rare Prisma codes (P2005–P2020 variants) and Redis `ReplyError` are not individually asserted; `request-context.ts` function coverage excludes error paths of `res.on('finish')`; the React boundaries and `ErrorState` are not rendered by any test; `process-handlers.ts` was exercised with an event emitter, not by crashing a real process; SMTP behaviour against a real provider (TLS, authentication, provider throttling) is untested.
+Uncovered or weakly covered critical paths: `error-classifier.ts` branches for rare Prisma codes (P2005–P2020 variants) and Redis `ReplyError`; `request-context.ts` error paths of the `finish` handler; `process-handlers.ts` was exercised with an event emitter, not a real crash; React boundaries (`error.tsx`, `global-error.tsx`) are not rendered by any test; SMTP behaviour against a real provider (TLS, authentication, throttling) is untested.
 
-Each live script ran against a freshly started API process. `next build` exits 1 if the shell has `NODE_ENV=development` (documented in `AGENTS.md`); the verification sets `NODE_ENV=production` for web checks.
+`next build` exits 1 if the shell has `NODE_ENV=development` (documented in `AGENTS.md`); the verification sets `NODE_ENV=production` for web build and type-check.
 
 ### 7.2 Historical (not re-run on a separate date)
 Price-exposure probe before/after the appointment redaction fix; Docker/compose static audit; Postgres hardening review; migration forward/rollback on a disposable copy; mutation checks proving the permission, consent and rate-limit tests fail when the protections are removed.
 
 ## 8. Outstanding decisions and external dependencies
 
-Decisions (owner): alert recipients and SMTP provider (`ALERT_EMAIL_TO`, `SMTP_*`), alert thresholds (cooldown, hourly cap, minimum severity) and who is on call; whether to add an external uptime monitor; rotate/retire the legacy Gmail credentials found in `.env`; patients route permissions P5 (assistant lookup, dentist demographic edits) and the auth flags A7–A12 in `docs/security/sensitive-data-authorisation-review.md`; treatment/catalog price policy A–E (`docs/security/treatment-price-policy.md`); route policies A1–A7 (`docs/security/whatsapp-appointment-route-inventory.md`); registration policy; whether assistants may book or change appointment status; emergency-contact design; migration approval and order.
+Decisions (owner): D-AUDIT — what `audit_logs` may store and for how long; the broadcast campaign form (J12); alert recipients and SMTP provider (`ALERT_EMAIL_TO`, `SMTP_*`), alert thresholds (cooldown, hourly cap, minimum severity) and who is on call; whether to add an external uptime monitor; rotate/retire the legacy Gmail credentials found in `.env`; patients route permissions P5 (assistant lookup, dentist demographic edits) and the auth flags A7–A12 in `docs/security/sensitive-data-authorisation-review.md`; treatment/catalog price policy A–E (`docs/security/treatment-price-policy.md`); route policies A1–A7 (`docs/security/whatsapp-appointment-route-inventory.md`); registration policy; whether assistants may book or change appointment status; emergency-contact design; migration approval and order.
 External: PostgreSQL credential and backups; Razorpay sandbox/test keys; Twilio and 360Dialog accounts and approved templates; AWS S3/SES accounts; production domain and public webhook URL; GitHub token scope if CI workflows are added.
 
 ## 9. Prioritised backlog
@@ -342,7 +355,8 @@ External: PostgreSQL credential and backups; Razorpay sandbox/test keys; Twilio 
 | P0 | Resolve PostgreSQL credential; take and **restore-test** a backup (N3, N4) |
 | P0 | Approve/apply migrations in staging first (N2) — unblocks F4, I4, rating persistence |
 | P1 | Apply permission guards to patients, notifications, conversations, non-revenue analytics (A4) |
-| P1 | Render/trigger the error boundaries in a browser and convert the remaining pages to `ErrorState` (L2, L5); extend the contract test to payload schemas (L4); browser-test the add-patient and booking forms (L6) |
+| P1 | Browser (Playwright) tests: trigger the error boundaries, click Retry, submit the add-patient/booking/settings forms (L2, L5, L6, L7); replace `alert()` in the clinic components; extend the contract test to payload schemas (L4); browser-test the add-patient and booking forms (L6) |
+| P1 | Decide `audit_logs` body retention (D-AUDIT); fix or remove the broadcast form (J12) |
 | P1 | Add an external uptime check on `/api/v1/health/ready`; decide log retention and shipping (O4) |
 | P1 | Sandbox verification: Razorpay, Twilio, 360Dialog (F2, F3, J1) |
 | P1 | Gate Swagger; rate-limit `/errors/client`; review public billing routes (M7, K2, F6) |
@@ -356,10 +370,11 @@ External: PostgreSQL credential and backups; Razorpay sandbox/test keys; Twilio 
 
 | Date | Change | Why |
 |---|---|---|
+| 2026-10-21 | Frontend error states for Analytics, Clinic (calendar, chairs, availability), Settings and WhatsApp (loading / failed / empty / ready, support reference, retry); `QueryBoundary` + `query-state`; PII-safe logging (free-form exception messages omitted by default, `errText`, `maskPhone`, 13 call sites, static `log-hygiene` guard); `super_admin`-only alert-test endpoint tests; web component test harness (45 tests); fixed: Settings could overwrite the profile with blanks after a failed load, WhatsApp conversations list always looked empty, analytics showed "No data yet" while loading; found (not fixed): broadcast form payload (J12), `audit_logs` bodies (D-AUDIT); added M14, L7, J12 | Close the remaining frontend gaps from the observability change and remove patient data from logs |
 | 2026-10-21 | Observability: central error contract + classifier, structured JSON logging with redaction and request ids, health/readiness + outage monitor, rewritten alert service (bounded queue, dedupe, backoff, sanitised content, no hard-coded recipient), process handlers, in-process metrics, hardened public client-error endpoint, frontend error parser/boundaries/error states, valid form payloads, robust API build; +230 tests, outage drill with PostgreSQL stopped; disclosed the Gmail authentication attempt (5.1b); added M8–M13, L5, L6, P4, raised K2, L2, O4 | Make failures diagnosable and visible without leaking data; do not claim e-mail alerting is operational before a real delivery test |
 | 2026-10-21 | Contract + auth stabilisation: fixed 6 client/API mismatches, added `GET /patients/stats`, redacted patient create/update, explicit update fields, logout now revokes the access token, unique refresh tokens, `KeepRaw` for passwords; added 209 tests (65 auth, 110 contract, 26 HTTP contract, 8 patients DB); A1–A3 and D4/C7/I1 raised; WhatsApp findings recorded as DEFERRED (J10, J11) | Close the P0 authentication-test gap and the frontend/API drift without touching WhatsApp |
 | 2026-10-21 | Report created from a full repository audit; statuses assigned from re-run evidence; `AGENTS.md` and `scripts/check-feature-status.mjs` added | Establish a single evidence-based source of truth before the first commit |
 
 ## 11. Latest verified Git commit
 
-`ee122e9471697ebd6e1909f728a8c8de476c4a5a` (`ee122e9`, 2026-10-21): the tree that the section 7.1 checks ran against; the only later change is this report, `AGENTS.md`, `docs/OBSERVABILITY.md` and `docs/runbooks/INCIDENT_RESPONSE.md`. Previous verified commit: `3bc19c6`.
+`3e6defb2dd15cf74fbe40918ee68fb510ab1b261` (`3e6defb`, 2026-10-21): the tree that the section 7.1 checks ran against (988/988 backend, 45/45 web, live scripts); the only later change is this report, `AGENTS.md`, `docs/OBSERVABILITY.md` and the incident runbook. Previous verified commit: `ee122e9`.
