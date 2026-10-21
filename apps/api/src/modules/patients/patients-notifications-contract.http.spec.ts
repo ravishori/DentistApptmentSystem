@@ -5,6 +5,7 @@
  * error handling the client relies on.
  */
 jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }), { virtual: true });
+jest.setTimeout(30_000);          // booting a Nest app per test can exceed 5 s while the whole suite runs in parallel
 
 import { CanActivate, ExecutionContext, Injectable, INestApplication, UnauthorizedException, ValidationPipe, VersioningType } from '@nestjs/common';
 import { APP_GUARD, Reflector } from '@nestjs/core';

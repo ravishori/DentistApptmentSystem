@@ -5,6 +5,7 @@
  * enforcement, input validation and rate limits.
  */
 jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }), { virtual: true });
+jest.setTimeout(30_000);          // booting a Nest app per test can exceed 5 s while the whole suite runs in parallel
 
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

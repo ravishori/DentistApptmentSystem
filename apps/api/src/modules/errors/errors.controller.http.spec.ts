@@ -3,6 +3,7 @@
  * the guarantee that e-mail delivery never delays or fails the request.
  */
 jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }), { virtual: true });
+jest.setTimeout(30_000);          // booting a Nest app per test can exceed 5 s while the whole suite runs in parallel
 
 import { INestApplication, MiddlewareConsumer, Module, NestModule, ValidationPipe, VersioningType } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';

@@ -4,6 +4,7 @@
  * services are stubbed. Authentication is simulated by an `x-test-user` header so no secrets are needed.
  */
 jest.mock('../../prisma/prisma.service', () => ({ PrismaService: class {} }), { virtual: true });
+jest.setTimeout(30_000);          // booting a Nest app per test can exceed 5 s while the whole suite runs in parallel
 
 import { Injectable, CanActivate, ExecutionContext, INestApplication, UnauthorizedException, ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

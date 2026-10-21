@@ -14,12 +14,21 @@ const record = (name, got, expected, extra = '') => {
   rows.push({ ok, name, got, expected: String(expected), extra });
 };
 
+let rateLimitRetries = 0;
 async function call(method, path, token, body) {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  // The API allows 100 requests/minute per client; this script makes about that many, so a fast machine can hit 429.
+  // Wait out the window (Retry-After) instead of reporting a bogus failure. The count is printed at the end.
+  let res;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (res.status !== 429) break;
+    rateLimitRetries++;
+    await new Promise((r) => setTimeout(r, (Number(res.headers.get('retry-after')) || 60) * 1000 + 300));
+  }
   let json = null;
   const text = await res.text();
   try { json = JSON.parse(text); } catch { /* csv etc. */ }
@@ -245,6 +254,6 @@ const data = (r) => r.json?.data ?? r.json;
 
   let fail = 0;
   for (const r of rows) { if (!r.ok) fail++; console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}  ->  ${r.got}${r.ok ? '' : `   (expected ${r.expected})`}`); }
-  console.log(`\n${rows.length - fail}/${rows.length} checks passed`);
+  console.log(`\n${rows.length - fail}/${rows.length} checks passed (rate-limit retries: ${rateLimitRetries})`);
   process.exit(fail ? 1 : 0);
 })().catch(async (e) => { console.error('E2E error:', e.message); await prisma.$disconnect(); process.exit(2); });
