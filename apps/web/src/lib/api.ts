@@ -98,6 +98,13 @@ export const appointmentsApi = {
   findOne: (id: string) => api.get(`/appointments/${id}`).then(r => r.data.data),
   slots: (dentistId: string, date: string) =>
     api.get('/appointments/slots', { params: { dentistId, date } }).then(r => r.data.data),
+  /** Every slot of the day with booked/blocked state (admin and receptionist only; others get 403). */
+  allSlots: (dentistId: string, date: string) =>
+    api.get('/appointments/slots', { params: { dentistId, date, includeAll: true } }).then(r => r.data.data),
+  blockSlot: (slotId: string, reason: string) =>
+    api.patch(`/appointments/slots/${slotId}/block`, { reason }).then(r => r.data.data),
+  unblockSlot: (slotId: string) =>
+    api.patch(`/appointments/slots/${slotId}/unblock`).then(r => r.data.data),
   book: (dto: any) => api.post('/appointments', dto).then(r => r.data.data),
   updateStatus: (id: string, dto: any) =>
     api.patch(`/appointments/${id}/status`, dto).then(r => r.data.data),

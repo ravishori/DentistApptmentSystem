@@ -106,6 +106,8 @@ describe('apps/web/src/lib/api.ts matches the mounted API', () => {
     expect(has('POST', '/appointments/:p/reschedule')).toBe(true);
     expect(has('PATCH', '/notifications/:p/read')).toBe(false);
     expect(has('PATCH', '/notifications/read')).toBe(true);
+    expect(has('PATCH', '/appointments/slots/:p/block')).toBe(true);        // slot manager
+    expect(has('PATCH', '/appointments/slots/:p/unblock')).toBe(true);
     expect(calls.some((c) => c.path.startsWith('/users'))).toBe(false);
     expect(resolve(table, { verb: 'GET', path: '/patients/stats' })?.path).toBe('/patients/stats');   // not swallowed by /patients/:id
   });

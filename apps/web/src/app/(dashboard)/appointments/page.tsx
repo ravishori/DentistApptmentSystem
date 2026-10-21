@@ -23,10 +23,15 @@ import {
 } from '@/components/ui/select';
 import {
   Calendar, ChevronLeft, ChevronRight, Plus, Search,
-  LayoutList, LayoutGrid, Clock, User, Stethoscope, MoreHorizontal,
+  LayoutList, LayoutGrid, Clock, User, Stethoscope, MoreHorizontal, CalendarClock, Ban,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BookAppointmentModal } from '@/components/appointments/book-modal';
+import { CancelAppointmentDialog } from '@/components/appointments/cancel-dialog';
+import { RescheduleAppointmentDialog } from '@/components/appointments/reschedule-dialog';
+import { SlotManagerDialog } from '@/components/appointments/slot-manager';
+import { useAuth } from '@/lib/auth';
+import { canCancelAppointment, canManageSlots, canRescheduleAppointment } from '@/lib/appointment-rules';
 import { cn, formatDentist } from '@/lib/utils';
 
 // ── Status color helpers ──────────────────────────────────────────────────────
@@ -125,10 +130,14 @@ function ApptDetailPanel({
   appt,
   onClose,
   onStatusChange,
+  onCancel,
+  onReschedule,
 }: {
   appt: any;
   onClose: () => void;
   onStatusChange: (id: string, status: string) => void;
+  onCancel: (appt: any) => void;
+  onReschedule: (appt: any) => void;
 }) {
   if (!appt) return null;
   return (
@@ -153,23 +162,25 @@ function ApptDetailPanel({
           </div>
         </div>
         <StatusBadge status={appt.status} />
-        <div className="pt-1 flex gap-2">
+        <div className="pt-1 flex flex-wrap gap-2">
           {appt.status === 'scheduled' && (
-            <>
-              <Button size="sm" className="flex-1 h-7 text-xs"
-                onClick={() => onStatusChange(appt.id, 'in_progress')}>
-                Start
-              </Button>
-              <Button size="sm" variant="destructive" className="flex-1 h-7 text-xs"
-                onClick={() => onStatusChange(appt.id, 'cancelled')}>
-                Cancel
-              </Button>
-            </>
+            <Button size="sm" className="h-8 flex-1 text-xs" onClick={() => onStatusChange(appt.id, 'in_progress')}>
+              Start
+            </Button>
           )}
           {appt.status === 'in_progress' && (
-            <Button size="sm" variant="success" className="w-full h-7 text-xs"
-              onClick={() => onStatusChange(appt.id, 'completed')}>
+            <Button size="sm" variant="success" className="h-8 w-full text-xs" onClick={() => onStatusChange(appt.id, 'completed')}>
               Mark Completed
+            </Button>
+          )}
+          {canRescheduleAppointment(appt.status) && (
+            <Button size="sm" variant="outline" className="h-8 flex-1 text-xs" onClick={() => onReschedule(appt)}>
+              <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" /> Reschedule
+            </Button>
+          )}
+          {canCancelAppointment(appt.status) && (
+            <Button size="sm" variant="destructive" className="h-8 flex-1 text-xs" onClick={() => onCancel(appt)}>
+              Cancel
             </Button>
           )}
         </div>
@@ -179,20 +190,29 @@ function ApptDetailPanel({
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
-/** Row actions for an appointment (always visible: no hover-only controls). */
-function ApptActions({ appt, onStatus }: { appt: any; onStatus: (id: string, status: string) => void }) {
-  if (appt.status === 'scheduled') {
-    return (
-      <div className="flex items-center gap-1.5">
+/** Row actions for an appointment (always visible: no hover-only controls). Cancel and reschedule open confirmation dialogs. */
+function ApptActions({ appt, onStatus, onCancel, onReschedule }: {
+  appt: any;
+  onStatus: (id: string, status: string) => void;
+  onCancel: (appt: any) => void;
+  onReschedule: (appt: any) => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {appt.status === 'scheduled' && (
         <Button size="sm" className="h-8 px-2.5 text-xs" onClick={() => onStatus(appt.id, 'in_progress')}>Start</Button>
-        <Button size="sm" variant="outline" className="h-8 border-destructive/40 px-2.5 text-xs text-destructive" onClick={() => onStatus(appt.id, 'cancelled')}>Cancel</Button>
-      </div>
-    );
-  }
-  if (appt.status === 'in_progress') {
-    return <Button size="sm" variant="success" className="h-8 px-2.5 text-xs" onClick={() => onStatus(appt.id, 'completed')}>Complete</Button>;
-  }
-  return null;
+      )}
+      {appt.status === 'in_progress' && (
+        <Button size="sm" variant="success" className="h-8 px-2.5 text-xs" onClick={() => onStatus(appt.id, 'completed')}>Complete</Button>
+      )}
+      {canRescheduleAppointment(appt.status) && (
+        <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs" onClick={() => onReschedule(appt)} aria-label={`Reschedule ${appt.patient?.fullName ?? 'appointment'}`}>Reschedule</Button>
+      )}
+      {canCancelAppointment(appt.status) && (
+        <Button size="sm" variant="outline" className="h-8 border-destructive/40 px-2.5 text-xs text-destructive" onClick={() => onCancel(appt)} aria-label={`Cancel ${appt.patient?.fullName ?? 'appointment'}`}>Cancel</Button>
+      )}
+    </div>
+  );
 }
 
 export default function AppointmentsPage() {
@@ -206,6 +226,13 @@ export default function AppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showBook, setShowBook] = useState(false);
   const [selectedAppt, setSelectedAppt] = useState<any>(null);
+  const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState<any>(null);
+  const [showSlots, setShowSlots] = useState(false);
+  const { user } = useAuth();
+  const slotManager = canManageSlots(user?.role);
+  const openCancel = (a: any) => { setSelectedAppt(null); setCancelTarget(a); };
+  const openReschedule = (a: any) => { setSelectedAppt(null); setRescheduleTarget(a); };
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -254,10 +281,18 @@ export default function AppointmentsPage() {
         title="Appointments"
         subtitle="Manage your clinic schedule"
         actions={
-          <Button size="sm" onClick={() => setShowBook(true)} aria-label="New appointment">
-            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-            New Appointment
-          </Button>
+          <>
+            {slotManager && (
+              <Button size="sm" variant="outline" onClick={() => setShowSlots(true)}>
+                <Ban className="w-3.5 h-3.5" aria-hidden="true" />
+                Manage slots
+              </Button>
+            )}
+            <Button size="sm" onClick={() => setShowBook(true)} aria-label="New appointment">
+              <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+              New Appointment
+            </Button>
+          </>
         }
       />
 
@@ -392,7 +427,7 @@ export default function AppointmentsPage() {
                       <p className="truncate text-xs capitalize text-muted-foreground">{a.type?.replace(/_/g, ' ')}{a.dentist?.fullName ? ` · ${formatDentist(a.dentist.fullName)}` : ''}</p>
                       <div className="flex flex-wrap items-center gap-2 pt-0.5">
                         <StatusBadge status={a.status} />
-                        <ApptActions appt={a} onStatus={(id, status) => updateStatus.mutate({ id, status })} />
+                        <ApptActions appt={a} onStatus={(id, status) => updateStatus.mutate({ id, status })} onCancel={openCancel} onReschedule={openReschedule} />
                       </div>
                     </div>
                   </li>
@@ -465,7 +500,7 @@ export default function AppointmentsPage() {
                       <StatusBadge status={a.status} />
                     </TableCell>
                     <TableCell>
-                      <ApptActions appt={a} onStatus={(id, status) => updateStatus.mutate({ id, status })} />
+                      <ApptActions appt={a} onStatus={(id, status) => updateStatus.mutate({ id, status })} onCancel={openCancel} onReschedule={openReschedule} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -503,8 +538,14 @@ export default function AppointmentsPage() {
           appt={selectedAppt}
           onClose={() => setSelectedAppt(null)}
           onStatusChange={(id, status) => updateStatus.mutate({ id, status })}
+          onCancel={openCancel}
+          onReschedule={openReschedule}
         />
       )}
+
+      {cancelTarget && <CancelAppointmentDialog appt={cancelTarget} onClose={() => setCancelTarget(null)} />}
+      {rescheduleTarget && <RescheduleAppointmentDialog appt={rescheduleTarget} onClose={() => setRescheduleTarget(null)} />}
+      {showSlots && <SlotManagerDialog onClose={() => setShowSlots(false)} initialDate={dateStr} />}
 
       {showBook && (
         <BookAppointmentModal
