@@ -3,6 +3,7 @@ import {
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AppointmentStatus } from '@prisma/client';
+import { KeepRaw } from '../../../common/validators/keep-raw';
 
 export class UpdateAppointmentStatusDto {
   @ApiPropertyOptional({ enum: AppointmentStatus })
@@ -10,12 +11,14 @@ export class UpdateAppointmentStatusDto {
   status: AppointmentStatus;
 
   @ApiPropertyOptional({ example: 'Patient requested cancellation' })
+  @KeepRaw()
   @IsString()
   @MaxLength(500)
   @IsOptional()
   reason?: string;
 
   @ApiPropertyOptional()
+  @KeepRaw()
   @IsString()
   @MaxLength(5000)
   @IsOptional()
@@ -33,6 +36,7 @@ export class RescheduleAppointmentDto {
   startTime: string;
 
   @ApiPropertyOptional()
+  @KeepRaw()
   @IsString()
   @MaxLength(500)
   @IsOptional()

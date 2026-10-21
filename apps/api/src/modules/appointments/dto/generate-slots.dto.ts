@@ -1,8 +1,9 @@
 import {
   IsUUID, IsDateString, IsString, IsInt, IsOptional,
-  Matches, Min, Max,
+  Matches, Min, Max, MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { KeepRaw } from '../../../common/validators/keep-raw';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class GenerateSlotsDto {
@@ -51,6 +52,16 @@ export class BlockSlotDto {
 
   @ApiPropertyOptional()
   @IsString()
+  @IsOptional()
+  reason?: string;
+}
+
+/** Request body of PATCH /appointments/slots/:slotId/block (the slot id comes from the path). */
+export class BlockSlotBodyDto {
+  @ApiPropertyOptional({ example: 'Dentist on leave', maxLength: 200 })
+  @KeepRaw()   // a JSON number/object must be rejected, not coerced to "123" / "[object Object]" and stored
+  @IsString()
+  @MaxLength(200)
   @IsOptional()
   reason?: string;
 }

@@ -15,7 +15,28 @@ export class SlotsService {
 
   // ── Get available slots ──────────────────────────────────────────────────
 
+  /** Dates are plain calendar days (YYYY-MM-DD); anything else is a client error, not a database error. */
+  private assertCalendarDate(date: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? '') || Number.isNaN(new Date(date).getTime())) {
+      throw new BadRequestException('date must be a valid YYYY-MM-DD date');
+    }
+  }
+
+  /**
+   * Every slot of a dentist on a day with its state (free, booked, blocked + reason) so reception can block and unblock.
+   * Not cached: the clinic must see the current state. Always scoped to the caller's clinic.
+   */
+  async listForDay(clinicId: string, dentistId: string, date: string) {
+    this.assertCalendarDate(date);
+    return this.prisma.appointmentSlot.findMany({
+      where:   { clinicId, dentistId, slotDate: new Date(date) },
+      select:  { id: true, dentistId: true, slotDate: true, startTime: true, endTime: true, isBooked: true, isBlocked: true, blockReason: true },
+      orderBy: { startTime: 'asc' },
+    });
+  }
+
   async getAvailable(clinicId: string, dentistId: string, date: string) {
+    this.assertCalendarDate(date);
     const key = CacheService.keys.slots(clinicId, dentistId, date);
     return this.cache.wrap(
       key,

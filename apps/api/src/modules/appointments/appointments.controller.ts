@@ -1,6 +1,6 @@
 import {
   Controller, Get, Post, Patch, Param, Body, Query,
-  ParseUUIDPipe, HttpCode, HttpStatus,
+  ParseUUIDPipe, HttpCode, HttpStatus, ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags, ApiBearerAuth, ApiOperation, ApiQuery,
@@ -12,7 +12,7 @@ import {
   UpdateAppointmentStatusDto, RescheduleAppointmentDto,
 } from './dto/update-appointment.dto';
 import { FilterAppointmentsDto } from './dto/filter-appointments.dto';
-import { GenerateSlotsDto, BlockSlotDto } from './dto/generate-slots.dto';
+import { GenerateSlotsDto, BlockSlotBodyDto } from './dto/generate-slots.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, ClinicId } from '../../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../../common/types/request.types';
@@ -20,6 +20,9 @@ import { UserRole } from '@prisma/client';
 import { RequirePermission } from '../../common/decorators/permissions.decorator';
 import { roleHasPermission } from '../../common/guards/permissions.guard';
 import { redactAppointment, redactAppointments, redactAppointmentPage } from './appointment-financials';
+
+/** Roles that may block and unblock slots (and therefore see blocked slots with their reasons). */
+export const SLOT_MANAGER_ROLES = [UserRole.clinic_admin, UserRole.super_admin, UserRole.receptionist] as const;
 
 @ApiTags('Appointments')
 @ApiBearerAuth()
@@ -41,11 +44,21 @@ export class AppointmentsController {
   @ApiOperation({ summary: 'Get available slots for a dentist on a date' })
   @ApiQuery({ name: 'dentistId', required: true })
   @ApiQuery({ name: 'date', required: true, example: '2024-11-15' })
+  @ApiQuery({ name: 'includeAll', required: false, description: 'true = every slot with its booked/blocked state (admin, receptionist only)' })
   getAvailableSlots(
     @ClinicId() clinicId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('dentistId', ParseUUIDPipe) dentistId: string,
     @Query('date') date: string,
+    @Query('includeAll') includeAll?: string,
   ) {
+    if (includeAll === 'true') {
+      // Blocked slots carry free-text reasons: only the roles that can block/unblock may read them
+      if (!user?.role || !(SLOT_MANAGER_ROLES as readonly string[]).includes(user.role)) {
+        throw new ForbiddenException('Insufficient permissions to view blocked slots');
+      }
+      return this.slotsService.listForDay(clinicId, dentistId, date);
+    }
     return this.slotsService.getAvailable(clinicId, dentistId, date);
   }
 
@@ -60,18 +73,18 @@ export class AppointmentsController {
   }
 
   @Patch('slots/:slotId/block')
-  @Roles(UserRole.clinic_admin, UserRole.super_admin, UserRole.receptionist)
+  @Roles(...SLOT_MANAGER_ROLES)
   @ApiOperation({ summary: 'Block a slot to prevent booking' })
   blockSlot(
     @ClinicId() clinicId: string,
     @Param('slotId', ParseUUIDPipe) slotId: string,
-    @Body() dto: Pick<BlockSlotDto, 'reason'>,
+    @Body() dto: BlockSlotBodyDto,
   ) {
     return this.slotsService.block(clinicId, { slotId, reason: dto.reason });
   }
 
   @Patch('slots/:slotId/unblock')
-  @Roles(UserRole.clinic_admin, UserRole.super_admin, UserRole.receptionist)
+  @Roles(...SLOT_MANAGER_ROLES)
   @ApiOperation({ summary: 'Unblock a previously blocked slot' })
   unblockSlot(
     @ClinicId() clinicId: string,
