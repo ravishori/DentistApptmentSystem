@@ -2,13 +2,16 @@
 import React, { useState } from 'react';
 import { billingApi } from '@/lib/api';
 
+// Insurance is intentionally excluded from manual-payment choices. Insurance
+// settlements are tracked through the dedicated insurance-claims workflow,
+// not recorded as ordinary manual payments. Keep in sync with
+// apps/api/src/modules/billing/dto/manual-payment.dto.ts :: ManualPaymentMethod.
 const PAYMENT_METHODS = [
   { value: 'cash',       label: 'Cash' },
   { value: 'upi',        label: 'UPI' },
   { value: 'card',       label: 'Card' },
   { value: 'netbanking', label: 'Net Banking' },
   { value: 'cheque',     label: 'Cheque' },
-  { value: 'insurance',  label: 'Insurance' },
   { value: 'other',      label: 'Other' },
 ];
 
