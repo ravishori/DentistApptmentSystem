@@ -6,7 +6,7 @@ import { secretWeakness } from '../../config/validate-env';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LEN    = 16;
 const TAG_LEN   = 16;
-
+const CREDENTIAL_PREFIX = 'enc:v1:';
 /**
  * EncryptionService — AES-256-GCM field-level encryption.
  *
@@ -66,6 +66,64 @@ export class EncryptionService {
       this.logger.warn('Decryption failed — returning null');
       return null;
     }
+  }
+
+/**
+ * Encrypt a credential using the versioned storage format.
+ * Format: enc:v1:<base64 AES-256-GCM payload>
+ */
+encryptCredential(plaintext: string): string {
+  if (!plaintext || !plaintext.trim()) {
+    throw new Error('Credential cannot be empty');
+  }
+
+  return `${CREDENTIAL_PREFIX}${this.encrypt(plaintext)}`;
+}
+
+/**
+ * Decrypt a stored credential.
+ *
+ * Versioned credentials are decrypted.
+ * Legacy unmarked plaintext credentials remain usable during migration.
+ * Unknown or corrupted encrypted formats fail closed.
+ */
+  decryptCredential(stored: string): string {
+    if (!stored) {
+      throw new Error('Credential is missing');
+    }
+
+    if (stored.startsWith(CREDENTIAL_PREFIX)) {
+      const payload = stored.slice(CREDENTIAL_PREFIX.length);
+
+      if (!payload) {
+        throw new Error('Encrypted credential payload is missing');
+      }
+
+      // Reject malformed or non-canonical Base64.
+      if (
+        !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(payload)
+      ) {
+        throw new Error('Invalid encrypted credential format');
+      }
+
+      const decoded = Buffer.from(payload, 'base64');
+
+      if (
+        decoded.toString('base64') !== payload ||
+        decoded.length <= IV_LEN + TAG_LEN
+      ) {
+        throw new Error('Invalid encrypted credential payload');
+      }
+
+      return this.decrypt(payload);
+    }
+
+    if (stored.startsWith('enc:')) {
+      throw new Error('Unsupported encrypted credential version');
+    }
+
+    // Temporary backward compatibility for existing plaintext credentials.
+    return stored;
   }
 
   // ── One-way hashing (for searchable encrypted fields) ─────────────────────
