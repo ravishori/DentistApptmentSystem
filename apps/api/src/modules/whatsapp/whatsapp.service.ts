@@ -1,3 +1,4 @@
+
 import { Injectable, Logger, Optional, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -5,8 +6,8 @@ import axios from 'axios';
 import { PrismaService } from '../../prisma/prisma.service';
 import dayjs from 'dayjs';
 import { WhatsappProviderPolicy } from './whatsapp-provider.policy';
-import { errText } from '../../common/observability/redaction';
-import { maskPhone } from '../../common/observability/redaction';
+import { errText, maskPhone } from '../../common/observability/redaction';
+import { EncryptionService } from '../../common/encryption/encryption.service';
 
 @Injectable()
 export class WhatsappService {
@@ -16,73 +17,108 @@ export class WhatsappService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     @Optional() private readonly policy?: WhatsappProviderPolicy,
+    @Optional() private readonly encryption?: EncryptionService,
   ) {}
 
-  // ── Core send helpers ─────────────────────────────────────────────────────
+  // ── Core send helpers ──────────────────────────────────────────────────
 
   /**
-   * Consent gate for STAFF-initiated manual sends. The recipient must be a patient of the caller's clinic and EVERY
-   * patient record sharing that phone (family numbers) must have opted in; one opt-out blocks the send.
+   * Consent gate for STAFF-initiated manual sends.
+   * The recipient must be a patient of the caller's clinic and EVERY
+   * patient record sharing that phone (family numbers) must have opted in;
+   * one opt-out blocks the send.
    * Patients of other clinics never count.
    */
-  async assertRecipientConsented(clinicId: string, phone: string): Promise<void> {
+  async assertRecipientConsented(
+    clinicId: string,
+    phone: string,
+  ): Promise<void> {
     const variants = [phone, phone.replace(/^\+/, '')];
+
     const patients = await this.prisma.patient.findMany({
       where: { clinicId, phone: { in: variants } },
       select: { waOptIn: true },
     });
-    if (!patients.length) throw new ForbiddenException('Recipient is not a registered patient of this clinic');
-    if (patients.some((p) => !p.waOptIn)) throw new ForbiddenException('Recipient has not opted in to WhatsApp messages');
+
+    if (!patients.length) {
+      throw new ForbiddenException(
+        'Recipient is not a registered patient of this clinic',
+      );
+    }
+
+    if (patients.some((p) => !p.waOptIn)) {
+      throw new ForbiddenException(
+        'Recipient has not opted in to WhatsApp messages',
+      );
+    }
   }
 
   async sendText(clinicId: string, to: string, text: string) {
     const conv = await this.getOrCreateConversation(clinicId, to);
+
     const msg = await this.prisma.whatsappMessage.create({
       data: {
         clinicId,
         conversationId: conv.id,
-        direction:      'outbound',
-        type:           'text',
-        content:        text,
-        status:         'queued',
+        direction: 'outbound',
+        type: 'text',
+        content: text,
+        status: 'queued',
       },
     });
 
     try {
-      const externalId = await this.dispatch(clinicId, to, { type: 'text', text: { body: text } });
+      const externalId = await this.dispatch(
+        clinicId,
+        to,
+        { type: 'text', text: { body: text } },
+      );
+
       await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
-        data:  { status: 'sent', externalId: externalId },
+        data: { status: 'sent', externalId },
       });
     } catch (err) {
-      this.logger.error(`WA send failed → ${maskPhone(to)}: ${errText(err)}`);
+      this.logger.error(
+        `WA send failed → ${maskPhone(to)}: ${errText(err)}`,
+      );
+
       await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
-        data:  { status: 'failed', failureReason: (err as Error).message },
+        data: {
+          status: 'failed',
+          failureReason: (err as Error).message,
+        },
       });
     }
+
     return msg;
   }
 
   async sendTemplate(
-    clinicId:     string,
-    to:           string,
+    clinicId: string,
+    to: string,
     templateName: string,
-    params:       Record<string, string>,
-    language =    'en',
+    params: Record<string, string>,
+    language = 'en',
   ) {
     const conv = await this.getOrCreateConversation(clinicId, to);
 
     const payload = {
       type: 'template',
       template: {
-        namespace:  'dental_ease',
-        name:       templateName,
-        language:   { policy: 'deterministic', code: language },
-        components: [{
-          type:       'body',
-          parameters: Object.values(params).map((v) => ({ type: 'text', text: v })),
-        }],
+        namespace: 'dental_ease',
+        name: templateName,
+        language: { policy: 'deterministic', code: language },
+        components: [
+          {
+            type: 'body',
+            parameters: Object.values(params).map((v) => ({
+              type: 'text',
+              text: v,
+            })),
+          },
+        ],
       },
     };
 
@@ -90,208 +126,356 @@ export class WhatsappService {
       data: {
         clinicId,
         conversationId: conv.id,
-        direction:      'outbound',
-        type:           'template',
-        content:        `[Template: ${templateName}]`,
+        direction: 'outbound',
+        type: 'template',
+        content: `[Template: ${templateName}]`,
         templateName,
         templateParams: params,
-        status:         'queued',
+        status: 'queued',
       },
     });
 
     try {
       const externalId = await this.dispatch(clinicId, to, payload);
+
       return await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
-        data:  { status: 'sent', externalId: externalId },
+        data: { status: 'sent', externalId },
       });
     } catch (err) {
-      this.logger.error(`Template send failed: ${errText(err)}`);
+      this.logger.error(
+        `Template send failed: ${errText(err)}`,
+      );
+
       const failed = await this.prisma.whatsappMessage.update({
         where: { id: msg.id },
-        data:  { status: 'failed', failureReason: (err as Error).message },
+        data: {
+          status: 'failed',
+          failureReason: (err as Error).message,
+        },
       });
-      // Not persisted: lets callers tell "provider rejected (4xx)" from "outcome unknown (timeout/5xx)"
-      return Object.assign(failed, { httpStatus: (err as any)?.response?.status as number | undefined });
+
+      // Not persisted: lets callers tell "provider rejected (4xx)"
+      // from "outcome unknown (timeout/5xx)".
+      return Object.assign(failed, {
+        httpStatus: (err as any)?.response?.status as number | undefined,
+      });
     }
   }
 
-  // ── Pre-built clinic notification senders ─────────────────────────────────
+  // ── Pre-built clinic notification senders ───────────────────────────────
 
-  async sendAppointmentConfirmation(clinicId: string, phone: string, data: {
-    patientName: string; dentistName: string; date: string; time: string; clinicName: string;
-  }) {
-    return this.sendTemplate(clinicId, phone, 'appointment_confirmation', data);
+  async sendAppointmentConfirmation(
+    clinicId: string,
+    phone: string,
+    data: {
+      patientName: string;
+      dentistName: string;
+      date: string;
+      time: string;
+      clinicName: string;
+    },
+  ) {
+    return this.sendTemplate(
+      clinicId,
+      phone,
+      'appointment_confirmation',
+      data,
+    );
   }
 
-  async sendReminder24h(clinicId: string, phone: string, data: {
-    patientName: string; dentistName: string; date: string; time: string; clinicName: string;
-  }) {
-    return this.sendTemplate(clinicId, phone, 'appointment_reminder_24h', data);
+  async sendReminder24h(
+    clinicId: string,
+    phone: string,
+    data: {
+      patientName: string;
+      dentistName: string;
+      date: string;
+      time: string;
+      clinicName: string;
+    },
+  ) {
+    return this.sendTemplate(
+      clinicId,
+      phone,
+      'appointment_reminder_24h',
+      data,
+    );
   }
 
-  async sendReminder2h(clinicId: string, phone: string, data: {
-    patientName: string; time: string; clinicName: string;
-  }) {
-    return this.sendTemplate(clinicId, phone, 'appointment_reminder_2h', data);
+  async sendReminder2h(
+    clinicId: string,
+    phone: string,
+    data: {
+      patientName: string;
+      time: string;
+      clinicName: string;
+    },
+  ) {
+    return this.sendTemplate(
+      clinicId,
+      phone,
+      'appointment_reminder_2h',
+      data,
+    );
   }
 
-  async sendFollowup(clinicId: string, phone: string, data: {
-    patientName: string; dentistName: string; clinicName: string;
-  }) {
-    return this.sendTemplate(clinicId, phone, 'appointment_followup', data);
+  async sendFollowup(
+    clinicId: string,
+    phone: string,
+    data: {
+      patientName: string;
+      dentistName: string;
+      clinicName: string;
+    },
+  ) {
+    return this.sendTemplate(
+      clinicId,
+      phone,
+      'appointment_followup',
+      data,
+    );
   }
 
-  async sendInvoiceLink(clinicId: string, phone: string, data: {
-    patientName: string; invoiceNumber: string; amount: string; paymentLink: string;
-  }) {
-    return this.sendTemplate(clinicId, phone, 'invoice_payment_link', data);
+  async sendInvoiceLink(
+    clinicId: string,
+    phone: string,
+    data: {
+      patientName: string;
+      invoiceNumber: string;
+      amount: string;
+      paymentLink: string;
+    },
+  ) {
+    return this.sendTemplate(
+      clinicId,
+      phone,
+      'invoice_payment_link',
+      data,
+    );
   }
 
-  // ── Webhook (inbound from 360Dialog) ─────────────────────────────────────
+  // ── Webhook (inbound from 360Dialog) ────────────────────────────────────
 
   async receiveWebhook(clinicId: string, payload: any) {
-    const messages = payload?.entry?.[0]?.changes?.[0]?.value?.messages ?? [];
+    const messages =
+      payload?.entry?.[0]?.changes?.[0]?.value?.messages ?? [];
 
     for (const msg of messages) {
-      const conv = await this.getOrCreateConversation(clinicId, msg.from);
+      const conv = await this.getOrCreateConversation(
+        clinicId,
+        msg.from,
+      );
 
       await this.prisma.whatsappMessage.create({
         data: {
           clinicId,
-          conversationId:    conv.id,
-          direction:         'inbound',
-          type:              'text',
-          content:           msg.text?.body ?? msg.interactive?.button_reply?.title ?? '',
+          conversationId: conv.id,
+          direction: 'inbound',
+          type: 'text',
+          content:
+            msg.text?.body ??
+            msg.interactive?.button_reply?.title ??
+            '',
           externalId: msg.id,
-          status:            'read',
+          status: 'read',
         },
       });
 
       await this.prisma.whatsappConversation.update({
         where: { id: conv.id },
-        data:  { lastMessageAt: new Date() },
+        data: { lastMessageAt: new Date() },
       });
     }
 
     // Delivery status updates
-    const statuses = payload?.entry?.[0]?.changes?.[0]?.value?.statuses ?? [];
+    const statuses =
+      payload?.entry?.[0]?.changes?.[0]?.value?.statuses ?? [];
+
     for (const s of statuses) {
       await this.prisma.whatsappMessage.updateMany({
         where: { externalId: s.id },
-        data:  { status: s.status },
+        data: { status: s.status },
       });
     }
   }
 
-  // ── Conversations API ─────────────────────────────────────────────────────
+  // ── Conversations API ──────────────────────────────────────────────────
 
-  async getConversations(clinicId: string, page = 1, limit = 20) {
+  async getConversations(
+    clinicId: string,
+    page = 1,
+    limit = 20,
+  ) {
     const skip = (page - 1) * limit;
+
     const [items, total] = await Promise.all([
       this.prisma.whatsappConversation.findMany({
-        where:   { clinicId },
+        where: { clinicId },
         orderBy: { lastMessageAt: 'desc' },
         include: {
-          messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-          patient:  { select: { fullName: true } },
+          messages: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+          patient: {
+            select: { fullName: true },
+          },
         },
         skip,
         take: limit,
       }),
-      this.prisma.whatsappConversation.count({ where: { clinicId } }),
+
+      this.prisma.whatsappConversation.count({
+        where: { clinicId },
+      }),
     ]);
+
     return { items, total, page, limit };
   }
 
-  async getMessages(clinicId: string, conversationId: string, page = 1, limit = 50) {
+  async getMessages(
+    clinicId: string,
+    conversationId: string,
+    page = 1,
+    limit = 50,
+  ) {
     const skip = (page - 1) * limit;
+
     const [items, total] = await Promise.all([
       this.prisma.whatsappMessage.findMany({
-        where:   { clinicId, conversationId },
+        where: { clinicId, conversationId },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
-      this.prisma.whatsappMessage.count({ where: { clinicId, conversationId } }),
+
+      this.prisma.whatsappMessage.count({
+        where: { clinicId, conversationId },
+      }),
     ]);
+
     return { items, total, page, limit };
   }
 
-  // ── Event listeners ───────────────────────────────────────────────────────
+  // ── Event listeners ────────────────────────────────────────────────────
 
   @OnEvent('appointment.booked')
   async onAppointmentBooked({ appointment, clinicId }: any) {
     const { patient, dentist, clinic } = appointment;
+
     if (!patient.waOptIn || !patient.phone) return;
-    // ReminderFlow (Twilio) also listens to this event: exactly ONE provider confirms a booking
+
+    // ReminderFlow (Twilio) also listens to this event:
+    // exactly ONE provider confirms a booking.
     if (this.policy && !this.policy.shouldSend('360dialog')) return;
 
-    await this.sendAppointmentConfirmation(clinicId, patient.phone, {
-      patientName: patient.fullName,
-      dentistName: dentist.fullName,
-      date:        dayjs(appointment.appointmentDate).format('D MMM YYYY'),
-      time:        appointment.startTime.slice(0, 5),
-      clinicName:  clinic.name,
-    });
+    await this.sendAppointmentConfirmation(
+      clinicId,
+      patient.phone,
+      {
+        patientName: patient.fullName,
+        dentistName: dentist.fullName,
+        date: dayjs(appointment.appointmentDate).format('D MMM YYYY'),
+        time: appointment.startTime.slice(0, 5),
+        clinicName: clinic.name,
+      },
+    );
   }
 
-  // suppressErrors:false → a failed delivery rejects, so the scheduler releases its claim and retries
+  // suppressErrors:false → failed delivery rejects,
+  // so the scheduler releases its claim and retries.
   @OnEvent('appointment.reminder_24h', { suppressErrors: false })
   async onReminder24h({ appointment }: any) {
     const { patient, dentist, clinic } = appointment;
+
     if (!patient.waOptIn || !patient.phone) return;
 
-    const sent = await this.sendReminder24h(appointment.clinicId, patient.phone, {
-      patientName: patient.fullName,
-      dentistName: dentist.fullName,
-      date:        dayjs(appointment.appointmentDate).format('D MMM YYYY'),
-      time:        appointment.startTime.slice(0, 5),
-      clinicName:  clinic.name,
-    });
-    if (sent.status === 'failed') throw new Error(sent.failureReason ?? 'WhatsApp delivery failed');
+    const sent = await this.sendReminder24h(
+      appointment.clinicId,
+      patient.phone,
+      {
+        patientName: patient.fullName,
+        dentistName: dentist.fullName,
+        date: dayjs(appointment.appointmentDate).format('D MMM YYYY'),
+        time: appointment.startTime.slice(0, 5),
+        clinicName: clinic.name,
+      },
+    );
+
+    if (sent.status === 'failed') {
+      throw new Error(
+        sent.failureReason ?? 'WhatsApp delivery failed',
+      );
+    }
   }
 
-  // suppressErrors:false → a failed delivery rejects, so the scheduler releases its claim and retries
   @OnEvent('appointment.reminder_2h', { suppressErrors: false })
   async onReminder2h({ appointment }: any) {
     const { patient, clinic } = appointment;
+
     if (!patient.waOptIn || !patient.phone) return;
 
-    const sent = await this.sendReminder2h(appointment.clinicId, patient.phone, {
-      patientName: patient.fullName,
-      time:        appointment.startTime.slice(0, 5),
-      clinicName:  clinic.name,
-    });
-    if (sent.status === 'failed') throw new Error(sent.failureReason ?? 'WhatsApp delivery failed');
+    const sent = await this.sendReminder2h(
+      appointment.clinicId,
+      patient.phone,
+      {
+        patientName: patient.fullName,
+        time: appointment.startTime.slice(0, 5),
+        clinicName: clinic.name,
+      },
+    );
+
+    if (sent.status === 'failed') {
+      throw new Error(
+        sent.failureReason ?? 'WhatsApp delivery failed',
+      );
+    }
   }
 
-  // suppressErrors:false → a failed delivery rejects, so the scheduler releases its claim and retries
   @OnEvent('appointment.followup', { suppressErrors: false })
   async onFollowup({ appointment }: any) {
     const { patient, dentist, clinic } = appointment;
+
     if (!patient.waOptIn || !patient.phone) return;
 
-    const sent = await this.sendFollowup(appointment.clinicId, patient.phone, {
-      patientName: patient.fullName,
-      dentistName: dentist.fullName,
-      clinicName:  clinic.name,
-    });
-    if (sent.status === 'failed') throw new Error(sent.failureReason ?? 'WhatsApp delivery failed');
+    const sent = await this.sendFollowup(
+      appointment.clinicId,
+      patient.phone,
+      {
+        patientName: patient.fullName,
+        dentistName: dentist.fullName,
+        clinicName: clinic.name,
+      },
+    );
+
+    if (sent.status === 'failed') {
+      throw new Error(
+        sent.failureReason ?? 'WhatsApp delivery failed',
+      );
+    }
   }
 
   @OnEvent('invoice.sent')
   async onInvoiceSent({ invoice, paymentLink, clinicId }: any) {
     const patient = invoice?.patient ?? invoice;
-    // A business-initiated WhatsApp message (even a payment link) needs the patient's opt-in
+
+    // A business-initiated WhatsApp message (even a payment link)
+    // needs the patient's opt-in.
     if (!patient?.waOptIn || !patient?.phone) return;
 
-    await this.sendInvoiceLink(invoice.clinicId ?? clinicId, patient.phone, {
-      patientName:   patient.fullName,
-      invoiceNumber: invoice.invoiceNumber,
-      amount:        `₹${Number(invoice.balanceAmount ?? invoice.totalAmount).toLocaleString('en-IN')}`,
-      paymentLink,
-    });
+    await this.sendInvoiceLink(
+      invoice.clinicId ?? clinicId,
+      patient.phone,
+      {
+        patientName: patient.fullName,
+        invoiceNumber: invoice.invoiceNumber,
+        amount: `₹${Number(
+          invoice.balanceAmount ?? invoice.totalAmount,
+        ).toLocaleString('en-IN')}`,
+        paymentLink,
+      },
+    );
   }
 
   /**
@@ -300,34 +484,58 @@ export class WhatsappService {
    */
   @OnEvent('payment.success')
   async onPaymentSuccess({
-    clinicId, invoiceId, patientId, amountPaid, razorpayPaymentId,
+    clinicId,
+    invoiceId,
+    patientId,
+    amountPaid,
+    razorpayPaymentId,
   }: {
-    clinicId: string; invoiceId: string; patientId: string;
-    amountPaid: number; razorpayPaymentId: string;
+    clinicId: string;
+    invoiceId: string;
+    patientId: string;
+    amountPaid: number;
+    razorpayPaymentId: string;
   }) {
     const [invoice, patient, clinic] = await Promise.all([
-      this.prisma.invoice.findUnique({ where: { id: invoiceId } }),
-      this.prisma.patient.findUnique({
-        where:  { id: patientId },
-        select: { fullName: true, phone: true, waOptIn: true },
+      this.prisma.invoice.findUnique({
+        where: { id: invoiceId },
       }),
+
+      this.prisma.patient.findUnique({
+        where: { id: patientId },
+        select: {
+          fullName: true,
+          phone: true,
+          waOptIn: true,
+        },
+      }),
+
       this.prisma.clinic.findUnique({
-        where:  { id: clinicId },
-        select: { name: true, waApiKey: true },
+        where: { id: clinicId },
+        select: { name: true },
       }),
     ]);
 
-    if (!patient?.waOptIn || !patient?.phone || !invoice || !clinic) return;
+    if (!patient?.waOptIn || !patient?.phone || !invoice || !clinic) {
+      return;
+    }
 
-    await this.sendTemplate(clinicId, patient.phone, 'payment_receipt', {
-      patientName:   patient.fullName,
-      amount:        `₹${amountPaid.toLocaleString('en-IN')}`,
-      invoiceNumber: invoice.invoiceNumber,
-      paymentId:     razorpayPaymentId,
-      clinicName:    clinic.name,
-    });
+    await this.sendTemplate(
+      clinicId,
+      patient.phone,
+      'payment_receipt',
+      {
+        patientName: patient.fullName,
+        amount: `₹${amountPaid.toLocaleString('en-IN')}`,
+        invoiceNumber: invoice.invoiceNumber,
+        paymentId: razorpayPaymentId,
+        clinicName: clinic.name,
+      },
+    );
 
-    this.logger.log(`Payment receipt sent to ${maskPhone(patient.phone)} for invoice ${invoiceId}`);
+    this.logger.log(
+      `Payment receipt sent to ${maskPhone(patient.phone)} for invoice ${invoiceId}`,
+    );
   }
 
   /**
@@ -336,19 +544,34 @@ export class WhatsappService {
    */
   @OnEvent('payment.refunded')
   async onPaymentRefunded({
-    clinicId, patientId, invoiceId, amountRefunded,
+    clinicId,
+    patientId,
+    invoiceId,
+    amountRefunded,
   }: {
-    clinicId: string; patientId: string; invoiceId: string; amountRefunded: number;
+    clinicId: string;
+    patientId: string;
+    invoiceId: string;
+    amountRefunded: number;
   }) {
     const [patient, invoice] = await Promise.all([
       this.prisma.patient.findUnique({
-        where:  { id: patientId },
-        select: { fullName: true, phone: true, waOptIn: true },
+        where: { id: patientId },
+        select: {
+          fullName: true,
+          phone: true,
+          waOptIn: true,
+        },
       }),
-      this.prisma.invoice.findUnique({ where: { id: invoiceId } }),
+
+      this.prisma.invoice.findUnique({
+        where: { id: invoiceId },
+      }),
     ]);
 
-    if (!patient?.waOptIn || !patient?.phone || !invoice) return;
+    if (!patient?.waOptIn || !patient?.phone || !invoice) {
+      return;
+    }
 
     await this.sendText(
       clinicId,
@@ -357,12 +580,16 @@ export class WhatsappService {
     );
   }
 
-  // ── Internals ─────────────────────────────────────────────────────────────
+  // ── Internals ──────────────────────────────────────────────────────────
 
-  private async getOrCreateConversation(clinicId: string, phone: string) {
+  private async getOrCreateConversation(
+    clinicId: string,
+    phone: string,
+  ) {
     const existing = await this.prisma.whatsappConversation.findFirst({
       where: { clinicId, patientPhone: phone },
     });
+
     if (existing) return existing;
 
     const patient = await this.prisma.patient.findFirst({
@@ -371,24 +598,72 @@ export class WhatsappService {
     });
 
     return this.prisma.whatsappConversation.create({
-      data: { clinicId, patientPhone: phone, patientId: patient?.id },
+      data: {
+        clinicId,
+        patientPhone: phone,
+        patientId: patient?.id,
+      },
     });
   }
 
-  private async dispatch(clinicId: string, to: string, payload: any): Promise<string> {
+  private async dispatch(
+    clinicId: string,
+    to: string,
+    payload: any,
+  ): Promise<string> {
     const clinic = await this.prisma.clinic.findUnique({
-      where:  { id: clinicId },
+      where: { id: clinicId },
       select: { waApiKey: true },
     });
 
-    const apiKey = clinic?.waApiKey ?? this.config.get<string>('whatsapp.apiKey');
+    let apiKey: string | undefined;
+
+    if (clinic?.waApiKey) {
+      const storedKey = clinic.waApiKey;
+
+      if (storedKey.startsWith('enc:')) {
+        if (!this.encryption) {
+          throw new Error(
+            'EncryptionService unavailable: cannot decrypt clinic WhatsApp credentials',
+          );
+        }
+
+        // Fail closed: decryption errors must never trigger global-key fallback.
+        apiKey = this.encryption.decryptCredential(storedKey);
+      } else {
+        // Temporary backward compatibility for legacy plaintext credentials.
+        apiKey = storedKey;
+      }
+    } else {
+      // Global fallback is allowed only when the clinic has no API key.
+      apiKey = this.config.get<string>('whatsapp.apiKey');
+    }
+
     const baseUrl = this.config.get<string>('whatsapp.baseUrl');
+
+    if (!apiKey) {
+      throw new Error('WhatsApp API key is not configured');
+    }
+
+    if (!baseUrl) {
+      throw new Error('WhatsApp provider base URL is not configured');
+    }
 
     const response = await axios.post(
       `${baseUrl}/messages`,
-      { to, messaging_product: 'whatsapp', ...payload },
-      { headers: { 'D360-API-KEY': apiKey, 'Content-Type': 'application/json' } },
+      {
+        to,
+        messaging_product: 'whatsapp',
+        ...payload,
+      },
+      {
+        headers: {
+          'D360-API-KEY': apiKey,
+          'Content-Type': 'application/json',
+        },
+      },
     );
+
     return response.data?.messages?.[0]?.id;
   }
 }
